@@ -1,0 +1,84 @@
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    color-scheme: dark;
+  }
+
+  * {
+    box-sizing: border-box;
+  }
+
+  body {
+    @apply bg-surface text-text font-sans;
+    font-size: 14px;
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* Scrollbar — muted, not browser-default chrome */
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  ::-webkit-scrollbar-track { background: #0f1117; }
+  ::-webkit-scrollbar-thumb { background: #2a3347; border-radius: 3px; }
+  ::-webkit-scrollbar-thumb:hover { background: #4a5568; }
+}
+
+@layer components {
+  .btn {
+    @apply inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium
+           border border-border bg-surface-2
+           text-text-secondary hover:text-text hover:bg-surface-3
+           transition-colors cursor-pointer;
+    /* Deliberately rectangular — no rounded-pill */
+  }
+
+  .btn-primary {
+    @apply btn border-tier-high text-tier-high hover:bg-tier-high hover:text-white;
+  }
+
+  .btn-ghost {
+    @apply btn border-transparent bg-transparent hover:bg-surface-2;
+  }
+
+  .data-cell {
+    @apply px-3 py-2 text-sm border-b border-border;
+  }
+
+  .section-header {
+    @apply text-xs font-medium uppercase tracking-widest text-text-dim mb-3;
+  }
+
+  /* MapLibre popup override — match dark theme */
+  .maplibregl-popup-content {
+    background: #1e2533 !important;
+    border: 1px solid #2a3347 !important;
+    border-radius: 0 !important;
+    padding: 0 !important;
+    font-family: 'IBM Plex Sans', sans-serif !important;
+    font-size: 13px !important;
+    color: #e2e8f0 !important;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.5) !important;
+  }
+
+  .maplibregl-popup-tip {
+    border-top-color: #2a3347 !important;
+    border-bottom-color: #2a3347 !important;
+  }
+
+  .maplibregl-ctrl-group {
+    border-radius: 0 !important;
+    background: #1e2533 !important;
+    border: 1px solid #2a3347 !important;
+  }
+
+  .maplibregl-ctrl-group button {
+    background-color: transparent !important;
+  }
+}
