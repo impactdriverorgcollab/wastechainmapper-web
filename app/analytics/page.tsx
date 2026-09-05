@@ -51,7 +51,7 @@ export default function AnalyticsPage() {
     <div className="min-h-screen bg-surface">
       <header className="flex items-center justify-between px-4 py-2 border-b border-border bg-surface-1">
         <div className="flex items-center gap-3">
-          <span className="text-sm font-semibold tracking-tight text-text">DELTAFLOW ATLAS</span>
+          <span className="text-sm font-semibold tracking-tight text-text">WasteChainMapper</span>
           <span className="text-2xs text-text-dim uppercase tracking-widest">Analytics</span>
         </div>
         <nav className="flex items-center gap-4 text-xs text-text-secondary">
@@ -67,17 +67,17 @@ export default function AnalyticsPage() {
 
         {/* Platform KPI strip */}
         <div className="grid grid-cols-3 md:grid-cols-5 gap-3">
-          <StatCard label="Dump sites"        value={summary?.totalSites ?? '—'}       color="#e2e8f0" />
-          <StatCard label="Total flows"        value={summary?.totalFlows ?? '—'}       color="#f59e0b" />
-          <StatCard label="Processing rate"    value={summary ? `${Math.round(summary.processingRate * 100)}%` : '—'} color="#22c55e" />
-          <StatCard label="Tonnage tracked"    value={summary ? `${summary.totalTonnageTracked.toFixed(0)} t` : '—'} color="#a78bfa" />
-          <StatCard label="Open water alerts"  value={summary?.openWaterAnomalies ?? '—'} color="#ef4444" />
+          <StatCard label="Dump sites" value={summary?.totalSites ?? '—'} color="#e2e8f0" />
+          <StatCard label="Total flows" value={summary?.totalFlows ?? '—'} color="#f59e0b" />
+          <StatCard label="Processing rate" value={summary ? `${Math.round(summary.processingRate * 100)}%` : '—'} color="#22c55e" />
+          <StatCard label="Tonnage tracked" value={summary ? `${summary.totalTonnageTracked.toFixed(0)} t` : '—'} color="#a78bfa" />
+          <StatCard label="Open water alerts" value={summary?.openWaterAnomalies ?? '—'} color="#ef4444" />
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-          <StatCard label="Active facilities"  value={summary?.activeFacilities ?? '—'}   color="#60a5fa" />
-          <StatCard label="Water sources"      value={summary?.activeWaterSources ?? '—'} color="#34d399" />
-          <StatCard label="Active vehicles"    value={summary?.activeVehicles ?? '—'}     color="#fb923c" />
+          <StatCard label="Active facilities" value={summary?.activeFacilities ?? '—'} color="#60a5fa" />
+          <StatCard label="Water sources" value={summary?.activeWaterSources ?? '—'} color="#34d399" />
+          <StatCard label="Active vehicles" value={summary?.activeVehicles ?? '—'} color="#fb923c" />
         </div>
 
         {/* LGA filter */}

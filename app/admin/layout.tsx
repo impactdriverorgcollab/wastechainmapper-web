@@ -3,7 +3,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     <div className="min-h-screen bg-surface">
       <header className="flex items-center justify-between px-4 py-2 border-b border-border bg-surface-1">
         <div className="flex items-center gap-3">
-          <span className="text-sm font-semibold tracking-tight text-text">DELTAFLOW ATLAS</span>
+          <span className="text-sm font-semibold tracking-tight text-text">WasteChainMapper</span>
           <span className="text-2xs text-text-dim uppercase tracking-widest">Admin</span>
         </div>
         <nav className="flex items-center gap-4 text-xs text-text-secondary">

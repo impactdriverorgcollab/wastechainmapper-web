@@ -32,7 +32,7 @@ export default function LoginPage() {
     <div className="min-h-screen bg-surface flex items-center justify-center px-4">
       <div className="w-full max-w-sm">
         <div className="mb-8">
-          <p className="text-xs text-text-dim uppercase tracking-widest mb-1">DeltaFlow Atlas</p>
+          <p className="text-xs text-text-dim uppercase tracking-widest mb-1">WasteChainMapper</p>
           <h1 className="text-lg font-semibold text-text">Admin access</h1>
           <p className="text-sm text-text-secondary mt-1">
             Restricted to authorised field verifiers and administrators.
