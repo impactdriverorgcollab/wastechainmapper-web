@@ -21,20 +21,23 @@ export function VerificationQueue() {
   };
 
   useEffect(() => {
+    let mounted = true;
     const token = getToken();
     if (!token) return;
 
     getVerificationQueue(token)
-      .then(setReports)
+      .then((data) => { if (mounted) setReports(data); })
       .catch((e) => {
+        if (!mounted) return;
         if (e.message?.includes('401') || e.message?.includes('Unauthorized')) {
           router.push('/admin/login');
         } else {
           setError(e.message);
         }
       })
-      .finally(() => setLoading(false));
-  }, []);
+      .finally(() => { if (mounted) setLoading(false); });
+    return () => { mounted = false; };
+  }, [router]);
 
   async function handleVerify(id: string, status: 'FIELD_VERIFIED' | 'REJECTED') {
     const token = getToken();

@@ -1,4 +1,4 @@
-import type { ConfidenceTier, WasteType } from './types';
+import type { ConfidenceTier, WasteType, FacilityType, WaterSourceType, WaterAnomalyType, FloodRiskLevel } from './types';
 
 // Confidence tier color system.
 // These hex values are the single functional accent in the design system —
@@ -23,12 +23,55 @@ export const TIER_COLORS: Record<ConfidenceTier, { hex: string; label: string; d
 
 export const WASTE_TYPE_LABELS: Record<WasteType, string> = {
   MUNICIPAL: 'Municipal / Household',
+  ORGANIC: 'Organic',
+  PLASTIC: 'Plastic',
   INDUSTRIAL: 'Industrial',
   MEDICAL: 'Medical / Clinical',
   ELECTRONIC: 'Electronic (E-waste)',
   CONSTRUCTION: 'Construction / Rubble',
   MIXED: 'Mixed',
   UNKNOWN: 'Unknown',
+};
+
+export const FACILITY_TYPE_LABELS: Record<FacilityType, string> = {
+  COLLECTION_POINT: 'Collection Point',
+  TRANSFER_STATION: 'Transfer Station',
+  RECYCLING: 'Recycling Facility',
+  LANDFILL: 'Landfill',
+  INCINERATION: 'Incineration Plant',
+};
+
+export const FACILITY_TYPE_COLORS: Record<FacilityType, string> = {
+  COLLECTION_POINT: '#22c55e',
+  TRANSFER_STATION: '#f59e0b',
+  RECYCLING: '#3b82f6',
+  LANDFILL: '#6b7280',
+  INCINERATION: '#ef4444',
+};
+
+export const WATER_SOURCE_LABELS: Record<WaterSourceType, string> = {
+  EXTRACTION: 'Water Extraction',
+  DISTRIBUTION: 'Distribution Network',
+  CONSUMPTION: 'Consumption Point',
+  WASTEWATER: 'Wastewater Outfall',
+};
+
+export const WATER_ANOMALY_LABELS: Record<WaterAnomalyType, string> = {
+  LEAK: 'Pipeline Leak',
+  ILLEGAL_EXTRACTION: 'Illegal Extraction',
+  CONTAMINATION: 'Contamination Hotspot',
+};
+
+export const WATER_ANOMALY_COLORS: Record<WaterAnomalyType, string> = {
+  LEAK: '#60a5fa',
+  ILLEGAL_EXTRACTION: '#f97316',
+  CONTAMINATION: '#a855f7',
+};
+
+export const FLOOD_RISK_COLORS: Record<FloodRiskLevel, string> = {
+  LOW: '#22c55e',
+  MEDIUM: '#f59e0b',
+  HIGH: '#ef4444',
 };
 
 export const SOURCE_TYPE_LABELS = {

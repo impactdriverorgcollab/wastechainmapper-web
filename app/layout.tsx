@@ -2,9 +2,9 @@ import type { Metadata } from 'next';
 import './globals.css';
 
 export const metadata: Metadata = {
-  title: 'WasteWatch — Rivers State Waste Intelligence',
+  title: 'DeltaFlow Atlas — Waste & Water Flow Intelligence',
   description:
-    'Environmental intelligence platform tracking waste distribution and illegal dumping sites in Rivers State, Nigeria.',
+    'Geospatial intelligence platform tracking municipal waste flows and water-use patterns across Port Harcourt and the Niger Delta. Source → collection → transfer → processing → disposal.',
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

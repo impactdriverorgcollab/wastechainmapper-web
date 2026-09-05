@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { getSites } from '@/lib/api';
-import type { DumpSite, ConfidenceTier, WasteType } from '@/lib/types';
+import type { DumpSite, ConfidenceTier, WasteType, FlowStatus } from '@/lib/types';
 import { TIER_COLORS, WASTE_TYPE_LABELS } from '@/lib/constants';
 
 // LGAs in Rivers State
@@ -67,11 +67,14 @@ export default function StakeholderPage() {
     <div className="min-h-screen bg-surface">
       <header className="flex items-center justify-between px-4 py-2 border-b border-border bg-surface-1">
         <div className="flex items-center gap-3">
-          <span className="text-sm font-semibold tracking-tight text-text">WASTEWATCH</span>
+          <span className="text-sm font-semibold tracking-tight text-text">DELTAFLOW ATLAS</span>
           <span className="text-2xs text-text-dim uppercase tracking-widest">Stakeholder view</span>
         </div>
         <nav className="flex items-center gap-4 text-xs text-text-secondary">
           <a href="/map" className="hover:text-text">Map</a>
+          <a href="/flows" className="hover:text-text">Flows</a>
+          <a href="/water" className="hover:text-text">Water</a>
+          <a href="/analytics" className="hover:text-text">Analytics</a>
           <a href="/admin" className="hover:text-text">Admin</a>
         </nav>
       </header>

@@ -20,6 +20,18 @@
     -webkit-font-smoothing: antialiased;
   }
 
+  /* Fill the real visible viewport on mobile browsers (avoids address-bar gap) */
+  .h-dvh {
+    height: 100dvh;
+  }
+
+  /* Hide scrollbar visually but keep it functional */
+  .scrollbar-none {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  .scrollbar-none::-webkit-scrollbar { display: none; }
+
   /* Scrollbar — muted, not browser-default chrome */
   ::-webkit-scrollbar {
     width: 6px;
