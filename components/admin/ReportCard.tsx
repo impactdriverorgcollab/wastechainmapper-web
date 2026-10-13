@@ -1,111 +1,157 @@
 'use client';
 
-import { ExternalLink, MapPin, CheckCheck, X } from 'lucide-react';
-import type { Report } from '@/lib/types';
-import { WASTE_TYPE_LABELS, SOURCE_TYPE_LABELS, TIER_COLORS } from '@/lib/constants';
+import Link from 'next/link';
+import { useState } from 'react';
+import { CheckCheck, ExternalLink, MapPin, MapPinOff, ShieldCheck, X } from 'lucide-react';
+import type { GazetteerEntry, Report } from '@/lib/types';
+import { GEOCODE_STATUS_LABELS, SOURCE_TYPE_LABELS, WASTE_TYPE_LABELS } from '@/lib/constants';
+import { NOT_RECORDED, formatCoords, formatDate, isWebUrl } from '@/lib/format';
+import { Badge } from '@/components/ui/Badge';
+import { Button } from '@/components/ui/Button';
+import { PlacePicker } from './PlacePicker';
+
+export type ReviewAction = 'CORROBORATED' | 'FIELD_VERIFIED' | 'REJECTED';
 
 interface Props {
   report: Report;
-  onApprove: (id: string) => void;
-  onReject: (id: string) => void;
-  loading?: boolean;
+  busy?: boolean;
+  /** Communities a reviewer can choose from for a story with no place. */
+  places: GazetteerEntry[];
+  onAction: (report: Report, action: ReviewAction) => void;
+  onPlace: (report: Report, placeId: string) => Promise<void>;
 }
 
-export function ReportCard({ report, onApprove, onReject, loading }: Props) {
+function confidenceWord(score: number) {
+  return score >= 0.7 ? 'High' : score >= 0.4 ? 'Medium' : 'Low';
+}
+
+function sentence(value: string | null) {
+  if (!value || value === 'unknown') return null;
+  return value.charAt(0).toUpperCase() + value.slice(1);
+}
+
+const PREVIEW_LENGTH = 320;
+
+export function ReportCard({ report, busy = false, places, onAction, onPlace }: Props) {
+  const [expanded, setExpanded] = useState(false);
+  const score = report.confidenceScore ?? 0;
   const hasCoords = report.geocodedLatitude != null && report.geocodedLongitude != null;
-  const confidence = report.confidenceScore ?? 0;
-  const confidenceColor =
-    confidence >= 0.7 ? TIER_COLORS.HIGH.hex :
-    confidence >= 0.4 ? TIER_COLORS.MEDIUM.hex :
-    TIER_COLORS.LOW.hex;
+  const isLong = report.rawText.length > PREVIEW_LENGTH;
+  const text = expanded || !isLong ? report.rawText : `${report.rawText.slice(0, PREVIEW_LENGTH).trimEnd()}...`;
+  const details = [
+    report.extractedWasteType && report.extractedWasteType !== 'UNKNOWN' ? WASTE_TYPE_LABELS[report.extractedWasteType] : null,
+    sentence(report.extractedSeverity) && `${sentence(report.extractedSeverity)} severity`,
+    sentence(report.extractedUrgency) && `${sentence(report.extractedUrgency)} urgency`,
+  ].filter(Boolean) as string[];
 
   return (
-    <div className="border border-border bg-surface-1 text-xs">
-      {/* Top bar: source + confidence */}
-      <div className="flex items-center justify-between px-3 py-2 border-b border-border bg-surface-2">
-        <div className="flex items-center gap-2 text-text-dim">
-          <span>{SOURCE_TYPE_LABELS[report.sourceType]}</span>
-          <span>·</span>
-          <span>{new Date(report.scrapedAt).toLocaleDateString('en-NG', { day: 'numeric', month: 'short', year: 'numeric' })}</span>
+    <article className="flex flex-col rounded-lg bg-panel" aria-busy={busy || undefined}>
+      <div className="flex flex-wrap items-center justify-between gap-2 px-4 pt-4">
+        <p className="text-sm text-fg-muted">
+          {SOURCE_TYPE_LABELS[report.sourceType]} · {formatDate(report.scrapedAt)}
+        </p>
+        <div className="flex items-center gap-2" title="How sure the system is that this is a real incident at this place">
+          <span className="text-sm text-fg-muted">Confidence</span>
+          <span
+            role="meter"
+            aria-label="Confidence"
+            aria-valuemin={0}
+            aria-valuemax={1}
+            aria-valuenow={score}
+            aria-valuetext={`${confidenceWord(score)}, ${score.toFixed(2)}`}
+            className="h-2 w-16 rounded-full bg-panel-3"
+          >
+            <span className="block h-full rounded-full bg-accent" style={{ width: `${Math.round(score * 100)}%` }} />
+          </span>
+          <span className="tabular text-sm font-semibold text-fg">{score.toFixed(2)}</span>
         </div>
-        <span
-          className="font-mono font-medium"
-          style={{ color: confidenceColor }}
-          title="Confidence score (0.0–1.0)"
-        >
-          {confidence.toFixed(2)}
-        </span>
       </div>
 
-      {/* Body */}
-      <div className="px-3 py-2 space-y-2">
-        {/* Extracted location */}
-        <div className="flex items-start gap-1.5">
-          <MapPin size={12} className="mt-0.5 shrink-0 text-text-dim" />
+      <div className="flex-1 space-y-3 px-4 py-3">
+        <div className="flex items-start gap-2">
+          {hasCoords ? (
+            <MapPin size={16} className="mt-1 shrink-0 text-fg-muted" aria-hidden="true" />
+          ) : (
+            <MapPinOff size={16} className="mt-1 shrink-0 text-warning" aria-hidden="true" />
+          )}
           <div>
-            <span className="text-text">{report.extractedLocationText ?? '—'}</span>
-            {hasCoords && (
-              <span className="ml-1.5 font-mono text-2xs text-text-dim">
-                {report.geocodedLatitude!.toFixed(4)}, {report.geocodedLongitude!.toFixed(4)}
-              </span>
-            )}
-            <span className="ml-1.5 text-2xs text-text-dim">
-              [{report.geocodeStatus.replace('_', ' ').toLowerCase()}]
-            </span>
+            <p className="text-base font-semibold text-fg">{report.extractedLocationText ?? 'No place named'}</p>
+            <p className="text-sm text-fg-muted">
+              {GEOCODE_STATUS_LABELS[report.geocodeStatus]}
+              {hasCoords && (
+                <>
+                  {' · '}
+                  <span className="font-mono text-xs">{formatCoords(report.geocodedLatitude, report.geocodedLongitude)}</span>
+                  {' · '}
+                  <Link
+                    href={`/map?lat=${report.geocodedLatitude}&lng=${report.geocodedLongitude}`}
+                    className="text-accent underline underline-offset-2 hover:text-accent-hover"
+                  >
+                    Check on map
+                  </Link>
+                </>
+              )}
+            </p>
           </div>
         </div>
 
-        {/* Waste type + severity */}
-        <div className="flex gap-3 text-text-secondary">
-          {report.extractedWasteType && (
-            <span>{WASTE_TYPE_LABELS[report.extractedWasteType]}</span>
-          )}
-          {report.extractedSeverity && (
-            <span className="text-text-dim">severity: {report.extractedSeverity}</span>
+        {!hasCoords && (
+          <PlacePicker places={places} busy={busy} onPlace={(placeId) => onPlace(report, placeId)} />
+        )}
+
+        {details.length > 0 && (
+          <ul className="flex flex-wrap gap-2" aria-label="What the report describes">
+            {details.map((d) => <li key={d}><Badge>{d}</Badge></li>)}
+          </ul>
+        )}
+
+        <div>
+          <p className="whitespace-pre-line text-sm text-fg-muted">{text}</p>
+          {isLong && (
+            <button
+              type="button"
+              onClick={() => setExpanded((e) => !e)}
+              aria-expanded={expanded}
+              className="mt-1 inline-flex min-h-11 items-center text-sm font-semibold text-accent hover:text-accent-hover"
+            >
+              {expanded ? 'Show less' : 'Read the full text'}
+            </button>
           )}
         </div>
 
-        {/* Raw text excerpt */}
-        <p className="text-text-secondary line-clamp-3 leading-relaxed">
-          {report.rawText.slice(0, 280)}
-          {report.rawText.length > 280 ? '…' : ''}
-        </p>
-
-        {/* Source link */}
-        {report.sourceUrl && (
+        {isWebUrl(report.sourceUrl) ? (
           <a
             href={report.sourceUrl}
             target="_blank"
             rel="noopener noreferrer"
-            className="inline-flex items-center gap-1 text-text-dim hover:text-text"
+            className="inline-flex min-h-11 items-center gap-1 text-sm font-semibold text-accent hover:text-accent-hover"
           >
-            <ExternalLink size={11} />
-            <span>Source</span>
+            Open the source article
+            <ExternalLink size={14} aria-hidden="true" />
+            <span className="sr-only">(opens in a new tab)</span>
           </a>
+        ) : (
+          <p className="text-sm text-fg-subtle">{report.sourceType === 'WHATSAPP_CITIZEN' ? 'Sent by a citizen on WhatsApp' : NOT_RECORDED}</p>
         )}
       </div>
 
-      {/* Actions */}
-      <div className="flex gap-2 px-3 py-2 border-t border-border">
-        <button
-          onClick={() => onApprove(report.id)}
-          disabled={loading}
-          className="btn flex-1 justify-center border-tier-medium text-tier-medium
-                     hover:bg-tier-medium hover:text-white disabled:opacity-40"
-        >
-          <CheckCheck size={12} />
-          Approve
-        </button>
-        <button
-          onClick={() => onReject(report.id)}
-          disabled={loading}
-          className="btn flex-1 justify-center border-border text-text-dim
-                     hover:bg-surface-3 disabled:opacity-40"
-        >
-          <X size={12} />
+      <div className="grid grid-cols-2 gap-2 px-4 pb-4">
+        <Button variant="primary" className="col-span-2" onClick={() => onAction(report, 'CORROBORATED')} disabled={busy || !hasCoords}>
+          <CheckCheck size={16} aria-hidden="true" />
+          Corroborate
+        </Button>
+        {!hasCoords && (
+          <p className="col-span-2 text-sm text-fg-muted">Place the story first, so the site can go on the map. You can reject it without a place.</p>
+        )}
+        <Button onClick={() => onAction(report, 'FIELD_VERIFIED')} disabled={busy || !hasCoords}>
+          <ShieldCheck size={16} aria-hidden="true" />
+          Field-verified
+        </Button>
+        <Button variant="danger" onClick={() => onAction(report, 'REJECTED')} disabled={busy}>
+          <X size={16} aria-hidden="true" />
           Reject
-        </button>
+        </Button>
       </div>
-    </div>
+    </article>
   );
 }

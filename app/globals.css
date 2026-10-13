@@ -1,5 +1,3 @@
-@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap');
-
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -9,88 +7,149 @@
     color-scheme: dark;
   }
 
-  * {
-    box-sizing: border-box;
+  html {
+    -webkit-text-size-adjust: 100%;
   }
 
   body {
-    @apply bg-surface text-text font-sans;
-    font-size: 14px;
-    line-height: 1.5;
-    -webkit-font-smoothing: antialiased;
+    @apply bg-canvas font-sans text-base text-fg antialiased;
   }
 
-  /* Fill the real visible viewport on mobile browsers (avoids address-bar gap) */
-  .h-dvh {
-    height: 100dvh;
+  /* One visible focus ring everywhere, for keyboard users. */
+  :focus-visible {
+    outline: 2px solid theme('colors.accent.DEFAULT');
+    outline-offset: 2px;
   }
 
-  /* Hide scrollbar visually but keep it functional */
-  .scrollbar-none {
-    -ms-overflow-style: none;
-    scrollbar-width: none;
+  /* Numbers that line up in columns and update in place. */
+  table,
+  .tabular {
+    font-variant-numeric: tabular-nums;
   }
-  .scrollbar-none::-webkit-scrollbar { display: none; }
 
-  /* Scrollbar — muted, not browser-default chrome */
+  /* Remove movement for people who ask for it. Colour changes stay, as instant swaps. */
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+
   ::-webkit-scrollbar {
-    width: 6px;
-    height: 6px;
+    width: 8px;
+    height: 8px;
   }
-  ::-webkit-scrollbar-track { background: #0f1117; }
-  ::-webkit-scrollbar-thumb { background: #2a3347; border-radius: 3px; }
-  ::-webkit-scrollbar-thumb:hover { background: #4a5568; }
+  ::-webkit-scrollbar-track {
+    background: theme('colors.canvas');
+  }
+  ::-webkit-scrollbar-thumb {
+    background: theme('colors.line.DEFAULT');
+    border-radius: theme('borderRadius.DEFAULT');
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: theme('colors.line.strong');
+  }
 }
 
 @layer components {
+  /* One content width per page type. */
+  .page {
+    @apply mx-auto w-full max-w-6xl px-4 sm:px-6;
+  }
+
+  /* ── Buttons ──────────────────────────────────────────────────────────── */
   .btn {
-    @apply inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium
-           border border-border bg-surface-2
-           text-text-secondary hover:text-text hover:bg-surface-3
-           transition-colors cursor-pointer;
-    /* Deliberately rectangular — no rounded-pill */
+    @apply inline-flex min-h-11 min-w-11 cursor-pointer select-none items-center justify-center gap-2
+           rounded px-4 text-sm font-semibold transition-colors duration-150
+           disabled:cursor-not-allowed disabled:opacity-50 aria-busy:cursor-progress;
   }
-
   .btn-primary {
-    @apply btn border-tier-high text-tier-high hover:bg-tier-high hover:text-white;
+    @apply btn bg-accent text-accent-fg hover:bg-accent-hover active:bg-accent-pressed
+           disabled:hover:bg-accent;
   }
-
+  .btn-secondary {
+    @apply btn bg-panel-3 text-fg hover:bg-line active:bg-panel-2 disabled:hover:bg-panel-3;
+  }
+  .btn-danger {
+    @apply btn bg-danger-soft text-danger hover:bg-danger hover:text-canvas active:bg-danger
+           active:text-canvas disabled:hover:bg-danger-soft disabled:hover:text-danger;
+  }
   .btn-ghost {
-    @apply btn border-transparent bg-transparent hover:bg-surface-2;
+    @apply btn text-fg-muted hover:bg-panel-2 hover:text-fg active:bg-panel-3
+           disabled:hover:bg-transparent disabled:hover:text-fg-muted;
   }
 
-  .data-cell {
-    @apply px-3 py-2 text-sm border-b border-border;
+  /* ── Forms ────────────────────────────────────────────────────────────── */
+  .label {
+    @apply mb-1 block text-sm font-semibold text-fg;
+  }
+  .hint {
+    @apply mt-1 text-sm text-fg-muted;
+  }
+  .field-error {
+    @apply mt-1 text-sm text-danger;
+  }
+  .input {
+    @apply block min-h-11 w-full rounded border border-line-strong bg-panel px-3 text-base text-fg
+           placeholder:text-fg-subtle hover:border-fg-subtle disabled:cursor-not-allowed disabled:opacity-50;
+  }
+  .input[aria-invalid='true'] {
+    @apply border-danger;
+  }
+  select.input {
+    @apply pr-8;
   }
 
-  .section-header {
-    @apply text-xs font-medium uppercase tracking-widest text-text-dim mb-3;
+  /* ── Tables ───────────────────────────────────────────────────────────── */
+  /* The wrapper is the only thing allowed to scroll sideways. */
+  .table-wrap {
+    /* relative: hidden screen-reader text inside a cell must stay inside this box and not widen the page. */
+    @apply relative overflow-x-auto rounded-lg bg-panel;
   }
+  .data-table {
+    @apply w-full min-w-max text-left text-sm;
+  }
+  .data-table th {
+    @apply whitespace-nowrap border-b border-line-strong px-3 py-3 text-xs font-semibold text-fg-muted;
+  }
+  .data-table td {
+    @apply border-t border-line px-3 py-3 align-top text-fg-muted;
+  }
+  .data-table tbody tr:hover td {
+    @apply bg-panel-2;
+  }
+  .data-table td.primary {
+    @apply font-semibold text-fg;
+  }
+  .data-table .num {
+    @apply text-right;
+  }
+}
 
-  /* MapLibre popup override — match dark theme */
-  .maplibregl-popup-content {
-    background: #1e2533 !important;
-    border: 1px solid #2a3347 !important;
-    border-radius: 0 !important;
-    padding: 0 !important;
-    font-family: 'IBM Plex Sans', sans-serif !important;
-    font-size: 13px !important;
-    color: #e2e8f0 !important;
-    box-shadow: 0 4px 16px rgba(0,0,0,0.5) !important;
-  }
-
-  .maplibregl-popup-tip {
-    border-top-color: #2a3347 !important;
-    border-bottom-color: #2a3347 !important;
-  }
-
-  .maplibregl-ctrl-group {
-    border-radius: 0 !important;
-    background: #1e2533 !important;
-    border: 1px solid #2a3347 !important;
-  }
-
-  .maplibregl-ctrl-group button {
-    background-color: transparent !important;
-  }
+/*
+ * Map controls. These classes come from MapLibre, not from our markup, so they sit outside
+ * @layer: Tailwind drops layer rules whose class names it cannot find in our source files.
+ */
+.maplibregl-ctrl-group {
+  @apply !rounded-lg !bg-panel-2 !shadow-raised;
+}
+.maplibregl-ctrl-group button {
+  @apply !h-11 !w-11 !bg-transparent hover:!bg-panel-3;
+}
+.maplibregl-ctrl-group button + button {
+  @apply !border-t !border-line;
+}
+/* The default control icons are black, so invert them on the dark panel. */
+.maplibregl-ctrl button .maplibregl-ctrl-icon {
+  filter: invert(1);
+}
+.maplibregl-ctrl-attrib {
+  @apply !bg-panel !text-fg-muted;
+}
+.maplibregl-ctrl-attrib a {
+  @apply !text-accent;
 }

@@ -90,8 +90,21 @@ export interface WasteFlow {
   destinationFacility?: { latitude: number | null; longitude: number | null; name: string; facilityType: FacilityType } | null;
 }
 
+export type ImportKind = 'dump-sites' | 'facilities' | 'waste-flows' | 'water-readings';
+
+export interface ImportResult {
+  kind: ImportKind;
+  committed: boolean;
+  total: number;
+  created: number;
+  updated: number;
+  skipped: number;
+  errors: { row: number; message: string }[];
+}
+
 export interface WaterSource {
   id: string;
+  sourceRef?: string | null;
   name: string;
   sourceType: WaterSourceType;
   latitude: number | null;
@@ -100,6 +113,12 @@ export interface WaterSource {
   ward: string | null;
   lga: string | null;
   isActive: boolean;
+  /** Set for points imported from public datasets (WPDx). Null for hand-entered sources. */
+  dataSource?: string | null;
+  surveyedAt?: string | null;
+  condition?: string | null;
+  technology?: string | null;
+  populationServed?: number | null;
 }
 
 export interface WaterAnomaly {
@@ -147,4 +166,82 @@ export interface AuthUser {
   email: string;
   displayName: string | null;
   role: 'ADMIN' | 'FIELD_VERIFIER' | 'PUBLIC_VIEWER';
+}
+
+// ── Shapes returned by the aggregate endpoints ───────────────────────────────
+
+export interface FlowStatRow {
+  status: FlowStatus;
+  wasteType: WasteType;
+  _count: { id: number };
+  _sum: { estimatedTonnage: number | null };
+}
+
+export interface BenchmarkRow {
+  lga: string;
+  total: number;
+  processed: number;
+  tonnage: number;
+  rate: number; // 0 to 1
+}
+
+export interface RecyclableRow {
+  wasteType: WasteType;
+  _count: { id: number };
+  _sum: { estimatedTonnage: number | null };
+}
+
+export interface WaterReading {
+  id: string;
+  sourceId: string;
+  volumeM3: number | null;
+  qualityScore: number | null;
+  ph: number | null;
+  turbidityNtu: number | null;
+  isSensor: boolean;
+  recordedAt: string;
+  source?: { name: string; sourceType: WaterSourceType };
+}
+
+export interface WaterDashboard {
+  sourceCount: number;
+  openAnomalies: number;
+  recentReadings: WaterReading[];
+}
+
+export type ApiKeyTier = 'FREE' | 'PROFESSIONAL' | 'ENTERPRISE' | 'INTERNAL';
+
+export interface ApiKeyTierInfo {
+  tier: ApiKeyTier;
+  dailyLimit: number;
+  description: string;
+}
+
+export interface ApiKeyRow {
+  id: string;
+  name: string;
+  tier: ApiKeyTier;
+  callsToday: number;
+  callsTotal: number;
+  dailyLimit: number;
+  isActive: boolean;
+  lastUsedAt: string | null;
+  createdAt: string;
+}
+
+export interface IssuedApiKey {
+  key: string;
+  tier: ApiKeyTier;
+  dailyLimit: number;
+  warning: string;
+}
+
+export interface GazetteerEntry {
+  id: string;
+  communityName: string;
+  ward: string;
+  lga: string;
+  centroidLat: number | null;
+  centroidLng: number | null;
+  aliases: string[];
 }

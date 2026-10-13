@@ -1,640 +1,272 @@
 'use client';
 
-import { useEffect, useRef, useState, useCallback } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import useSWR from 'swr';
 import maplibregl from 'maplibre-gl';
-// @ts-ignore
 import 'maplibre-gl/dist/maplibre-gl.css';
 import {
-  getSites, getCollectionPoints, getFacilities,
-  getWaterSources, getWaterAnomalies, getHeatmapData,
-  getFloodZones, getFlowTimeline,
+  getAllSites, getCollectionPoints, getFacilities, getFloodZoneGeoJson, getFloodZones,
+  getFlowTimeline, getHeatmapData, getWaterAnomalies, getWaterSources,
 } from '@/lib/api';
-import type {
-  DumpSite, CollectionPoint, Facility, WaterSource, WaterAnomaly, HeatmapPoint,
-  FloodZone, WasteFlow,
-} from '@/lib/types';
+import { RIVERS_STATE_CENTER, RIVERS_STATE_ZOOM } from '@/lib/constants';
+import type { DumpSite } from '@/lib/types';
+import { Button } from '@/components/ui/Button';
+import { DetailsCard, type Selection } from './DetailsCard';
+import { LayerPanel } from './LayerPanel';
+import { TimelineBar } from './TimelineBar';
 import {
-  TIER_COLORS, RIVERS_STATE_CENTER, RIVERS_STATE_ZOOM,
-  FACILITY_TYPE_COLORS, WATER_ANOMALY_COLORS,
-} from '@/lib/constants';
-import { SitePopup } from './SitePopup';
-import { LayerControl, DEFAULT_LAYERS, type LayerId, type LayerState } from './LayerControl';
+  CLICKABLE_LAYERS, DEFAULT_ENABLED, addAllLayers, applyVisibility, collectionPointsToGeoJSON, facilitiesToGeoJSON,
+  floodZonesToGeoJSON, flowRoutesToGeoJSON, heatmapToGeoJSON, nearestLinesToGeoJSON, placeFromFeature, setSourceData,
+  sitesToGeoJSON, waterAnomaliesToGeoJSON, waterSourcesToGeoJSON, type LayerId,
+} from './mapLayers';
 
 const MAP_STYLE =
-  process.env.NEXT_PUBLIC_MAP_STYLE ??
-  'https://tiles.stadiamaps.com/styles/alidade_smooth_dark.json';
+  process.env.NEXT_PUBLIC_MAP_STYLE ?? 'https://tiles.stadiamaps.com/styles/alidade_smooth_dark.json';
 
-function nearestCP(site: DumpSite, cps: CollectionPoint[]): CollectionPoint | null {
-  if (!site.latitude || !site.longitude) return null;
-  let best: CollectionPoint | null = null;
-  let bestDist = Infinity;
-  for (const cp of cps) {
-    if (!cp.latitude || !cp.longitude) continue;
-    const d = Math.hypot(cp.latitude - site.latitude!, cp.longitude - site.longitude!);
-    if (d < bestDist) { bestDist = d; best = cp; }
-  }
-  return best;
+const SWR = { revalidateOnFocus: false };
+const PLAYBACK_STEP_MS = 600;
+
+/** Optional deep link from the tables: /map?lat=..&lng=..&site=<id> */
+function readDeepLink() {
+  const p = new URLSearchParams(window.location.search);
+  const lat = Number(p.get('lat'));
+  const lng = Number(p.get('lng'));
+  return {
+    center: Number.isFinite(lat) && Number.isFinite(lng) && p.get('lat') && p.get('lng') ? ([lng, lat] as [number, number]) : null,
+    siteId: p.get('site'),
+  };
 }
 
 export default function WasteMap() {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
-  const layersAddedRef = useRef(false);
 
-  const [selectedSite, setSelectedSite] = useState<DumpSite | null>(null);
-  const [hoveredCP, setHoveredCP] = useState<CollectionPoint | null>(null);
-  const [layers, setLayers] = useState<LayerState[]>(DEFAULT_LAYERS);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [ready, setReady] = useState(false);
+  const [mapError, setMapError] = useState<string | null>(null);
+  const [enabled, setEnabled] = useState<Record<LayerId, boolean>>(DEFAULT_ENABLED);
+  const [selection, setSelection] = useState<Selection | null>(null);
+  const [timelineIdx, setTimelineIdx] = useState(0);
+  const [playing, setPlaying] = useState(false);
 
-  const [sites, setSites] = useState<DumpSite[]>([]);
-  const [collectionPoints, setCollectionPoints] = useState<CollectionPoint[]>([]);
-  const [facilities, setFacilities] = useState<Facility[]>([]);
-  const [waterSources, setWaterSources] = useState<WaterSource[]>([]);
-  const [waterAnomalies, setWaterAnomalies] = useState<WaterAnomaly[]>([]);
-  const [heatmapPoints, setHeatmapPoints] = useState<HeatmapPoint[]>([]);
-  const [floodZones, setFloodZones] = useState<FloodZone[]>([]);
-  const [flowTimeline, setFlowTimeline] = useState<WasteFlow[]>([]);
-  const [timelineIdx, setTimelineIdx] = useState<number>(0);
-  const [isPlaying, setIsPlaying] = useState(false);
+  // Each dataset loads on its own, so one failing never blanks the rest of the map.
+  const sites = useSWR('map-sites', () => getAllSites(), SWR);
+  const collectionPoints = useSWR('collection-points', getCollectionPoints, SWR);
+  const facilities = useSWR('facilities-active', () => getFacilities({ isActive: 'true' }), SWR);
+  const waterSources = useSWR('water-sources', () => getWaterSources(), SWR);
+  const waterAnomalies = useSWR('water-anomalies-open', () => getWaterAnomalies(true), SWR);
+  const heatmap = useSWR('heatmap', () => getHeatmapData(), SWR);
+  const floodZones = useSWR('flood-zones', () => getFloodZones(), SWR);
+  const flows = useSWR('flow-timeline-30', () => getFlowTimeline({ days: 30 }), SWR);
 
-  // Load all map data
-  useEffect(() => {
-    Promise.allSettled([
-      getSites({ limit: '500' }),
-      getCollectionPoints(),
-      getFacilities({ isActive: 'true' }),
-      getWaterSources(),
-      getWaterAnomalies(true),
-      getHeatmapData(),
-      getFloodZones(),
-      getFlowTimeline({ days: 30 }),
-    ]).then(([s, cp, fac, ws, wa, hm, fz, ft]) => {
-      if (s.status === 'fulfilled') setSites(s.value);
-      else setError('Failed to load dump sites');
-      if (cp.status === 'fulfilled') setCollectionPoints(cp.value);
-      if (fac.status === 'fulfilled') setFacilities(fac.value);
-      if (ws.status === 'fulfilled') setWaterSources(ws.value);
-      if (wa.status === 'fulfilled') setWaterAnomalies(wa.value);
-      if (hm.status === 'fulfilled') setHeatmapPoints(hm.value);
-      if (fz.status === 'fulfilled') setFloodZones(fz.value);
-      if (ft.status === 'fulfilled') { setFlowTimeline(ft.value); setTimelineIdx(ft.value.length); }
-    }).finally(() => setLoading(false));
-  }, []);
+  const zones = floodZones.data;
+  const floodGeo = useSWR(
+    zones && zones.length > 0 ? ['flood-geojson', zones.map((z) => z.id).join(',')] : null,
+    async () => {
+      const results = await Promise.allSettled(zones!.map((z) => getFloodZoneGeoJson(z.id)));
+      return results.map((r) => (r.status === 'fulfilled' ? r.value : null));
+    },
+    SWR,
+  );
 
-  // Init map once
+  // Latest values for the click handlers, which are registered once.
+  const sitesById = useRef(new Map<string, DumpSite>());
+  const pendingSiteId = useRef<string | null>(null);
+
+  // ── Create the map once ────────────────────────────────────────────────────
   useEffect(() => {
     if (!containerRef.current || mapRef.current) return;
+
+    const link = readDeepLink();
+    pendingSiteId.current = link.siteId;
+
     const map = new maplibregl.Map({
       container: containerRef.current,
       style: MAP_STYLE,
-      center: RIVERS_STATE_CENTER,
-      zoom: RIVERS_STATE_ZOOM,
+      center: link.center ?? RIVERS_STATE_CENTER,
+      zoom: link.center ? 14 : RIVERS_STATE_ZOOM,
       attributionControl: false,
     });
     map.addControl(new maplibregl.NavigationControl({ showCompass: false }), 'top-right');
     map.addControl(new maplibregl.AttributionControl({ compact: true }), 'bottom-right');
-    mapRef.current = map;
-    return () => { map.remove(); mapRef.current = null; layersAddedRef.current = false; };
-  }, []);
 
-  // Timeline playback controller
-  useEffect(() => {
-    if (!isPlaying || flowTimeline.length === 0) return;
-    if (timelineIdx >= flowTimeline.length) { setIsPlaying(false); return; }
-    const t = setTimeout(() => setTimelineIdx((i) => i + 1), 600);
-    return () => clearTimeout(t);
-  }, [isPlaying, timelineIdx, flowTimeline.length]);
+    map.on('load', () => {
+      addAllLayers(map);
 
-  // Add all layers once data is ready
-  useEffect(() => {
-    const map = mapRef.current;
-    if (!map || sites.length === 0 || layersAddedRef.current) return;
+      map.on('click', (e) => {
+        const hit = map.queryRenderedFeatures(e.point, { layers: CLICKABLE_LAYERS.filter((id) => map.getLayer(id)) })[0];
+        if (!hit) {
+          // A click on a cluster zooms in. A click on empty map closes the card.
+          const cluster = map.queryRenderedFeatures(e.point, { layers: ['sites-cluster'] })[0];
+          if (cluster) {
+            const src = map.getSource('dump-sites') as maplibregl.GeoJSONSource;
+            src.getClusterExpansionZoom(cluster.properties?.cluster_id).then((zoom) => {
+              map.easeTo({ center: (cluster.geometry as GeoJSON.Point).coordinates as [number, number], zoom });
+            });
+          } else {
+            setSelection(null);
+          }
+          return;
+        }
+        if (hit.layer.id === 'sites-circle') {
+          const site = sitesById.current.get(String(hit.properties?.id));
+          if (site) setSelection({ kind: 'site', site });
+          return;
+        }
+        const place = placeFromFeature(hit.layer.id, hit.properties ?? {});
+        if (place) setSelection({ kind: 'place', place });
+      });
 
-    const addAll = () => {
-      if (!map.isStyleLoaded()) { map.once('styledata', addAll); return; }
-      layersAddedRef.current = true;
+      // Pointer cursor over anything that can be clicked.
+      for (const id of [...CLICKABLE_LAYERS, 'sites-cluster']) {
+        map.on('mouseenter', id, () => { map.getCanvas().style.cursor = 'pointer'; });
+        map.on('mouseleave', id, () => { map.getCanvas().style.cursor = ''; });
+      }
 
-      // Flood zones (bottom — fill layer)
-      if (floodZones.length > 0) addFloodZonesLayer(map, floodZones);
-
-      // Flow lines (site → nearest collection point, static)
-      if (collectionPoints.length > 0) addFlowLines(map, sites, collectionPoints);
-
-      // Waste flow routes (animated via timeline — origin → destination facility)
-      addWasteFlowRoutesLayer(map, []);
-
-      // Collection points
-      if (collectionPoints.length > 0) addCollectionPointLayer(map, collectionPoints, setHoveredCP);
-
-      // Heatmap
-      if (heatmapPoints.length > 0) addHeatmapLayer(map, heatmapPoints);
-
-      // Facilities
-      if (facilities.length > 0) addFacilitiesLayer(map, facilities);
-
-      // Water sources
-      if (waterSources.length > 0) addWaterSourcesLayer(map, waterSources);
-
-      // Water anomalies
-      if (waterAnomalies.length > 0) addWaterAnomaliesLayer(map, waterAnomalies);
-
-      // Dump sites (top — rendered last so clickable above other layers)
-      addDumpSiteLayer(map, sites, setSelectedSite);
-
-      // Apply initial visibility from layer state
-      applyLayerVisibility(map, DEFAULT_LAYERS);
-    };
-
-    if (map.loaded()) addAll();
-    else map.on('load', addAll);
-  }, [sites, collectionPoints, facilities, waterSources, waterAnomalies, heatmapPoints, floodZones]);
-
-  // Sync waste flow routes with timeline scrubber position
-  useEffect(() => {
-    const map = mapRef.current;
-    if (!map || !map.getSource('waste-flow-routes')) return;
-    const visible = flowTimeline.slice(0, timelineIdx);
-    (map.getSource('waste-flow-routes') as maplibregl.GeoJSONSource).setData(buildFlowRoutesGeoJSON(visible));
-  }, [timelineIdx, flowTimeline]);
-
-  // Toggle layer visibility
-  const toggleLayer = useCallback((id: LayerId) => {
-    setLayers((prev) => {
-      const next = prev.map((l) => l.id === id ? { ...l, enabled: !l.enabled } : l);
-      const map = mapRef.current;
-      if (map && map.isStyleLoaded()) applyLayerVisibility(map, next);
-      return next;
+      applyVisibility(map, DEFAULT_ENABLED);
+      setReady(true);
     });
+
+    // Before the style has loaded, an error almost always means the map key or style address is wrong.
+    map.on('error', (e) => {
+      if (!map.isStyleLoaded() && !mapRef.current?.loaded()) {
+        console.error('Map error', e.error);
+        setMapError('The map background could not load. Check your connection. If it keeps failing, the map key may be missing or expired.');
+      }
+    });
+
+    mapRef.current = map;
+    return () => { map.remove(); mapRef.current = null; setReady(false); };
   }, []);
+
+  // ── Push each dataset into its source whenever it arrives or changes ───────
+  const withMap = useCallback((fn: (map: maplibregl.Map) => void) => {
+    const map = mapRef.current;
+    if (map && ready) fn(map);
+  }, [ready]);
+
+  useEffect(() => {
+    withMap((map) => setSourceData(map, 'dump-sites', sitesToGeoJSON(sites.data ?? [])));
+    sitesById.current = new Map((sites.data ?? []).map((s) => [s.id, s]));
+    // Open the site named in a deep link once the sites are in.
+    if (pendingSiteId.current && sites.data) {
+      const site = sitesById.current.get(pendingSiteId.current);
+      if (site) setSelection({ kind: 'site', site });
+      pendingSiteId.current = null;
+    }
+  }, [withMap, sites.data]);
+
+  useEffect(() => { withMap((m) => setSourceData(m, 'collection-points', collectionPointsToGeoJSON(collectionPoints.data ?? []))); }, [withMap, collectionPoints.data]);
+  useEffect(() => { withMap((m) => setSourceData(m, 'facilities', facilitiesToGeoJSON(facilities.data ?? []))); }, [withMap, facilities.data]);
+  useEffect(() => { withMap((m) => setSourceData(m, 'water-sources', waterSourcesToGeoJSON(waterSources.data ?? []))); }, [withMap, waterSources.data]);
+  useEffect(() => { withMap((m) => setSourceData(m, 'water-anomalies', waterAnomaliesToGeoJSON(waterAnomalies.data ?? []))); }, [withMap, waterAnomalies.data]);
+  useEffect(() => { withMap((m) => setSourceData(m, 'heatmap-data', heatmapToGeoJSON(heatmap.data ?? []))); }, [withMap, heatmap.data]);
+  useEffect(() => {
+    withMap((m) => setSourceData(m, 'flood-zones', floodZonesToGeoJSON(zones ?? [], floodGeo.data ?? [])));
+  }, [withMap, zones, floodGeo.data]);
+  useEffect(() => {
+    withMap((m) => setSourceData(m, 'nearest-lines', enabled['nearest-lines']
+      ? nearestLinesToGeoJSON(sites.data ?? [], collectionPoints.data ?? [])
+      : { type: 'FeatureCollection', features: [] }));
+  }, [withMap, enabled, sites.data, collectionPoints.data]);
+
+  // Show every recorded flow when the data first arrives. This also fixes the routes that
+  // never appeared until the slider was touched.
+  const flowList = flows.data;
+  useEffect(() => { if (flowList) setTimelineIdx(flowList.length); }, [flowList]);
+  useEffect(() => {
+    withMap((m) => setSourceData(m, 'waste-routes', flowRoutesToGeoJSON((flowList ?? []).slice(0, timelineIdx))));
+  }, [withMap, flowList, timelineIdx]);
+
+  // Playback
+  useEffect(() => {
+    if (!playing || !flowList) return;
+    if (timelineIdx >= flowList.length) { setPlaying(false); return; }
+    const t = setTimeout(() => setTimelineIdx((i) => i + 1), PLAYBACK_STEP_MS);
+    return () => clearTimeout(t);
+  }, [playing, timelineIdx, flowList]);
+
+  // Layer switches
+  useEffect(() => { withMap((m) => applyVisibility(m, enabled)); }, [withMap, enabled]);
+  const toggleLayer = useCallback((id: LayerId) => setEnabled((prev) => ({ ...prev, [id]: !prev[id] })), []);
+
+  // ── Status shown over the map ──────────────────────────────────────────────
+  const failed = useMemo(() => {
+    const checks: [string, boolean][] = [
+      ['collection points', !!collectionPoints.error], ['facilities', !!facilities.error],
+      ['water sources', !!waterSources.error], ['water problems', !!waterAnomalies.error],
+      ['density', !!heatmap.error], ['flood zones', !!floodZones.error], ['waste routes', !!flows.error],
+    ];
+    return checks.filter(([, bad]) => bad).map(([name]) => name);
+  }, [collectionPoints.error, facilities.error, waterSources.error, waterAnomalies.error, heatmap.error, floodZones.error, flows.error]);
+
+  const loading = !mapError && (!ready || sites.isLoading);
+
+  const counts: Partial<Record<LayerId, number>> = {
+    'dump-sites': sites.data?.length,
+    'collection-points': collectionPoints.data?.length,
+    facilities: facilities.data?.length,
+    'water-sources': waterSources.data?.length,
+    'water-anomalies': waterAnomalies.data?.length,
+  };
+
+  function retryAll() {
+    for (const q of [sites, collectionPoints, facilities, waterSources, waterAnomalies, heatmap, floodZones, flows]) {
+      if (q.error) void q.mutate();
+    }
+  }
+
+  const hasTimeline = (flowList?.length ?? 0) > 0;
+  const bannerText = sites.error
+    ? `The dump sites did not load. ${sites.error.message}`
+    : failed.length > 0 ? `Some layers did not load: ${failed.join(', ')}.` : null;
 
   return (
-    <div className="relative w-full h-full">
-      <div ref={containerRef} className="w-full h-full" />
+    <div className="relative h-full w-full">
+      <div ref={containerRef} role="region" aria-label="Map of dump sites and waste infrastructure" className="h-full w-full" />
 
-      {loading && (
-        <div className="absolute top-3 left-1/2 -translate-x-1/2 bg-surface-1 border border-border px-3 py-1 text-xs text-text-secondary">
-          Loading map data…
+      <div className="pointer-events-none absolute inset-x-3 top-3 z-10 flex flex-col items-start gap-3">
+        <div className="pointer-events-auto max-w-full">
+          <LayerPanel enabled={enabled} counts={counts} onToggle={toggleLayer} />
         </div>
-      )}
-      {error && (
-        <div className="absolute top-3 left-1/2 -translate-x-1/2 bg-surface-1 border border-tier-high px-3 py-1 text-xs text-tier-high">
-          {error}
-        </div>
-      )}
-
-      {selectedSite && (
-        <SitePopup site={selectedSite} onClose={() => setSelectedSite(null)} />
-      )}
-
-      {hoveredCP && (
-        <div className="absolute top-3 right-14 bg-surface-1 border border-border px-3 py-2 text-xs max-w-xs pointer-events-none">
-          <p className="text-text font-medium">{hoveredCP.name}</p>
-          <p className="text-text-secondary mt-0.5">{hoveredCP.operator}</p>
-          <p className="text-text-dim mt-0.5">{hoveredCP.ward} · {hoveredCP.lga}</p>
-          {hoveredCP.coverageRadiusM && (
-            <p className="text-text-dim mt-0.5">Coverage: {(hoveredCP.coverageRadiusM / 1000).toFixed(1)} km</p>
-          )}
-        </div>
-      )}
-
-      {/* Layer toggle control — top-left, width-constrained on mobile */}
-      <div className="absolute top-3 left-3 z-10 w-[170px] sm:w-[190px]">
-        <LayerControl layers={layers} onToggle={toggleLayer} />
       </div>
 
-      {/* Heatmap legend — shown only when heatmap layer is active */}
-      {layers.find((l) => l.id === 'heatmap')?.enabled && (
-        <div className="absolute bottom-14 right-3 z-10 bg-surface-1 border border-border px-3 py-2 text-xs w-[160px] sm:w-[180px]">
-          <p className="section-header mb-2">Waste density</p>
-          {/* Gradient bar matching the heatmap colour ramp */}
-          <div
-            className="h-2.5 w-full rounded-sm mb-1.5"
-            style={{
-              background:
-                'linear-gradient(to right, rgba(0,0,0,0) 0%, rgba(139,148,103,0.6) 20%, rgba(201,145,59,0.7) 40%, rgba(185,64,64,0.85) 70%, rgba(185,64,64,1) 100%)',
-            }}
-          />
-          <div className="flex justify-between text-2xs text-text-dim">
-            <span>Sparse</span>
-            <span>Dense</span>
+      <div className="pointer-events-none absolute inset-x-3 top-16 z-0 flex justify-center">
+        {loading && (
+          <p role="status" className="rounded-lg bg-panel px-4 py-2 text-sm text-fg-muted shadow-raised">Loading the map</p>
+        )}
+      </div>
+
+      {(mapError || bannerText) && (
+        <div role="alert" className="absolute inset-x-3 top-16 z-10 flex flex-col gap-3 rounded-lg bg-danger-soft p-4 shadow-raised md:left-auto md:right-16 md:top-3 md:w-80">
+          <p className="text-sm text-fg">{mapError ?? bannerText}</p>
+          <div>
+            <Button onClick={() => (mapError ? window.location.reload() : retryAll())}>
+              {mapError ? 'Reload the page' : 'Try again'}
+            </Button>
           </div>
-          <p className="text-2xs text-text-dim mt-1.5 leading-tight">
-            Weighted by site confidence tier
-          </p>
         </div>
       )}
 
-      {/* Timeline playback bar — full-width on mobile, centered on desktop */}
-      {flowTimeline.length > 0 && (
-        <div className="absolute bottom-3 left-3 right-3 sm:left-1/2 sm:right-auto sm:-translate-x-1/2 sm:w-[380px] z-10 bg-surface-1 border border-border px-3 py-2 flex items-center gap-2 text-xs">
-          <button
-            onClick={() => { setTimelineIdx(0); setIsPlaying(true); }}
-            className="btn text-2xs px-2 py-1 shrink-0"
-          >
-            ↺
-          </button>
-          <button
-            onClick={() => setIsPlaying((p) => !p)}
-            className="btn text-2xs px-2 py-1 shrink-0"
-          >
-            {isPlaying ? '⏸' : '▶'}
-          </button>
-          <div className="flex-1 flex flex-col gap-0.5 min-w-0">
-            <input
-              type="range"
-              min={0}
-              max={flowTimeline.length}
-              value={timelineIdx}
-              onChange={(e) => { setIsPlaying(false); setTimelineIdx(Number(e.target.value)); }}
-              className="w-full accent-[#B94040]"
-            />
-            <div className="flex justify-between text-2xs text-text-dim tabular-nums">
-              <span>
-                {timelineIdx > 0 && flowTimeline[timelineIdx - 1]
-                  ? new Date(flowTimeline[timelineIdx - 1].createdAt).toLocaleDateString('en-NG', { day: 'numeric', month: 'short' })
-                  : 'Start'}
-              </span>
-              <span style={{ color: '#f59e0b' }}>{timelineIdx}/{flowTimeline.length}</span>
-            </div>
+      {/* Both sit above the map attribution, which must stay readable. */}
+      <div className={`pointer-events-none absolute inset-x-3 z-20 flex flex-col items-start gap-3 sm:items-end ${hasTimeline ? 'bottom-28' : 'bottom-10'}`}>
+        {selection && (
+          <div className="pointer-events-auto w-full sm:w-auto">
+            <DetailsCard selection={selection} onClose={() => setSelection(null)} />
           </div>
+        )}
+      </div>
+
+      {hasTimeline && flowList && (
+        <div className="absolute inset-x-3 bottom-10 z-10 mx-auto max-w-xl">
+          <TimelineBar
+            flows={flowList}
+            index={timelineIdx}
+            playing={playing}
+            onIndexChange={setTimelineIdx}
+            onPlayingChange={setPlaying}
+          />
         </div>
       )}
     </div>
   );
-}
-
-// ── Layer visibility ──────────────────────────────────────────────────────────
-
-const LAYER_MAP: Record<LayerId, string[]> = {
-  'dump-sites':        ['sites-cluster', 'sites-cluster-count', 'sites-hit', 'sites-circle'],
-  'heatmap':           ['heatmap-layer'],
-  'flow-lines':        ['flow-lines', 'waste-flow-routes-line', 'waste-flow-routes-arrow'],
-  'collection-points': ['cp-radius', 'cp-circle', 'cp-label'],
-  'facilities':        ['facilities-circle', 'facilities-label'],
-  'water-sources':     ['water-sources-circle', 'water-sources-label'],
-  'water-anomalies':   ['water-anomalies-circle', 'water-anomalies-pulse'],
-  'flood-zones':       ['flood-zones-fill', 'flood-zones-outline'],
-};
-
-function applyLayerVisibility(map: maplibregl.Map, layers: LayerState[]) {
-  for (const layer of layers) {
-    const visibility = layer.enabled ? 'visible' : 'none';
-    for (const mapLayerId of LAYER_MAP[layer.id] ?? []) {
-      if (map.getLayer(mapLayerId)) {
-        map.setLayoutProperty(mapLayerId, 'visibility', visibility);
-      }
-    }
-  }
-}
-
-// ── Dump sites layer ──────────────────────────────────────────────────────────
-
-function buildSiteGeoJSON(sites: DumpSite[]): GeoJSON.FeatureCollection {
-  return {
-    type: 'FeatureCollection',
-    features: sites
-      .filter((s) => s.latitude != null && s.longitude != null)
-      .map((s) => ({
-        type: 'Feature',
-        geometry: { type: 'Point', coordinates: [s.longitude!, s.latitude!] },
-        properties: {
-          id: s.id,
-          confidenceTier: s.confidenceTier,
-          color: TIER_COLORS[s.confidenceTier].hex,
-          wasteType: s.wasteType,
-          communityName: s.communityName,
-          lga: s.lga,
-          status: s.status,
-          firstSeenAt: s.firstSeenAt,
-        },
-      })),
-  };
-}
-
-function addDumpSiteLayer(map: maplibregl.Map, sites: DumpSite[], onSelect: (s: DumpSite | null) => void) {
-  const SRC = 'dump-sites';
-  if (map.getSource(SRC)) {
-    (map.getSource(SRC) as maplibregl.GeoJSONSource).setData(buildSiteGeoJSON(sites));
-    return;
-  }
-  map.addSource(SRC, { type: 'geojson', data: buildSiteGeoJSON(sites), cluster: true, clusterMaxZoom: 13, clusterRadius: 40 });
-
-  map.addLayer({ id: 'sites-cluster', type: 'circle', source: SRC, filter: ['has', 'point_count'],
-    paint: { 'circle-color': '#2a3347', 'circle-radius': ['step', ['get', 'point_count'], 18, 10, 24, 50, 30], 'circle-stroke-width': 1, 'circle-stroke-color': '#4a5568' } });
-  map.addLayer({ id: 'sites-cluster-count', type: 'symbol', source: SRC, filter: ['has', 'point_count'],
-    layout: { 'text-field': '{point_count_abbreviated}', 'text-size': 11, 'text-font': ['Open Sans Regular'] }, paint: { 'text-color': '#a0aec0' } });
-  map.addLayer({ id: 'sites-hit', type: 'circle', source: SRC, filter: ['!', ['has', 'point_count']],
-    paint: { 'circle-radius': 16, 'circle-color': 'transparent', 'circle-opacity': 0 } });
-  map.addLayer({ id: 'sites-circle', type: 'circle', source: SRC, filter: ['!', ['has', 'point_count']],
-    paint: { 'circle-radius': 7, 'circle-color': ['get', 'color'], 'circle-stroke-width': 1.5, 'circle-stroke-color': '#0f1117', 'circle-opacity': 0.92 } });
-
-  map.on('mouseenter', 'sites-hit', (e) => {
-    map.getCanvas().style.cursor = 'pointer';
-    const site = sites.find((s) => s.id === e.features?.[0]?.properties?.id);
-    if (site) onSelect(site);
-  });
-  map.on('mouseleave', 'sites-hit', () => { map.getCanvas().style.cursor = ''; onSelect(null); });
-  map.on('click', 'sites-cluster', (e) => {
-    const feat = map.queryRenderedFeatures(e.point, { layers: ['sites-cluster'] });
-    const cid = feat[0]?.properties?.cluster_id;
-    if (!cid) return;
-    (map.getSource(SRC) as maplibregl.GeoJSONSource).getClusterExpansionZoom(cid).then((zoom) => {
-      if (zoom == null) return;
-      map.easeTo({ center: (feat[0].geometry as any).coordinates, zoom });
-    });
-  });
-  map.on('mouseenter', 'sites-cluster', () => { map.getCanvas().style.cursor = 'pointer'; });
-  map.on('mouseleave', 'sites-cluster', () => { map.getCanvas().style.cursor = ''; });
-}
-
-// ── Heatmap layer ─────────────────────────────────────────────────────────────
-
-function addHeatmapLayer(map: maplibregl.Map, points: HeatmapPoint[]) {
-  const SRC = 'heatmap-data';
-  if (map.getSource(SRC)) return;
-
-  const geojson: GeoJSON.FeatureCollection = {
-    type: 'FeatureCollection',
-    features: points.map((p) => ({
-      type: 'Feature',
-      geometry: { type: 'Point', coordinates: [p.lng, p.lat] },
-      properties: { weight: p.weight },
-    })),
-  };
-
-  map.addSource(SRC, { type: 'geojson', data: geojson });
-  map.addLayer({
-    id: 'heatmap-layer',
-    type: 'heatmap',
-    source: SRC,
-    maxzoom: 15,
-    paint: {
-      'heatmap-weight': ['interpolate', ['linear'], ['get', 'weight'], 0, 0, 1, 1],
-      'heatmap-intensity': ['interpolate', ['linear'], ['zoom'], 0, 1, 15, 3],
-      'heatmap-color': [
-        'interpolate', ['linear'], ['heatmap-density'],
-        0,   'rgba(0,0,0,0)',
-        0.2, 'rgba(139,148,103,0.6)',
-        0.4, 'rgba(201,145,59,0.7)',
-        0.7, 'rgba(185,64,64,0.85)',
-        1,   'rgba(185,64,64,1)',
-      ],
-      'heatmap-radius': ['interpolate', ['linear'], ['zoom'], 0, 20, 15, 40],
-      'heatmap-opacity': 0.8,
-    },
-    layout: { visibility: 'none' }, // off by default; toggled via LayerControl
-  });
-}
-
-// ── Collection points layer ───────────────────────────────────────────────────
-
-function addCollectionPointLayer(map: maplibregl.Map, cps: CollectionPoint[], onHover: (cp: CollectionPoint | null) => void) {
-  const SRC = 'collection-points';
-  if (map.getSource(SRC)) return;
-
-  const geojson: GeoJSON.FeatureCollection = {
-    type: 'FeatureCollection',
-    features: cps.filter((c) => c.latitude != null && c.longitude != null).map((c) => ({
-      type: 'Feature',
-      geometry: { type: 'Point', coordinates: [c.longitude!, c.latitude!] },
-      properties: { id: c.id, name: c.name, operator: c.operator, ward: c.ward, lga: c.lga, coverageRadiusM: c.coverageRadiusM },
-    })),
-  };
-
-  map.addSource(SRC, { type: 'geojson', data: geojson });
-  map.addLayer({ id: 'cp-radius', type: 'circle', source: SRC,
-    paint: { 'circle-radius': ['interpolate', ['exponential', 2], ['zoom'], 10, 8, 13, 30, 15, 80], 'circle-color': '#22c55e', 'circle-opacity': 0.1, 'circle-stroke-width': 1, 'circle-stroke-color': '#22c55e', 'circle-stroke-opacity': 0.4 } });
-  map.addLayer({ id: 'cp-circle', type: 'circle', source: SRC,
-    paint: { 'circle-radius': 8, 'circle-color': '#22c55e', 'circle-stroke-width': 2.5, 'circle-stroke-color': '#ffffff' } });
-  map.addLayer({ id: 'cp-label', type: 'symbol', source: SRC, minzoom: 12,
-    layout: { 'text-field': ['get', 'name'], 'text-size': 10, 'text-offset': [0, 1.4], 'text-anchor': 'top', 'text-font': ['Open Sans Regular'] },
-    paint: { 'text-color': '#22c55e', 'text-halo-color': '#0a0f1a', 'text-halo-width': 1 } });
-
-  map.on('mouseenter', 'cp-circle', (e) => {
-    map.getCanvas().style.cursor = 'pointer';
-    const cp = cps.find((c) => c.id === e.features?.[0]?.properties?.id);
-    if (cp) onHover(cp);
-  });
-  map.on('mouseleave', 'cp-circle', () => { map.getCanvas().style.cursor = ''; onHover(null); });
-}
-
-// ── Flow lines ────────────────────────────────────────────────────────────────
-
-function addFlowLines(map: maplibregl.Map, sites: DumpSite[], cps: CollectionPoint[]) {
-  const SRC = 'flow-lines';
-  if (map.getSource(SRC)) return;
-
-  const features: GeoJSON.Feature[] = sites
-    .filter((s) => s.latitude != null && s.longitude != null)
-    .flatMap((s) => {
-      const cp = nearestCP(s, cps);
-      if (!cp?.latitude || !cp?.longitude) return [];
-      return [{ type: 'Feature' as const,
-        geometry: { type: 'LineString' as const, coordinates: [[s.longitude!, s.latitude!], [cp.longitude!, cp.latitude!]] },
-        properties: { tier: s.confidenceTier } }];
-    });
-
-  map.addSource(SRC, { type: 'geojson', data: { type: 'FeatureCollection', features } });
-  map.addLayer({ id: 'flow-lines', type: 'line', source: SRC,
-    layout: { 'line-join': 'round', 'line-cap': 'round' },
-    paint: { 'line-color': '#4a5568', 'line-width': 1, 'line-opacity': 0.7, 'line-dasharray': [3, 4] } });
-}
-
-// ── Facilities layer ──────────────────────────────────────────────────────────
-
-function addFacilitiesLayer(map: maplibregl.Map, facilities: Facility[]) {
-  const SRC = 'facilities';
-  if (map.getSource(SRC)) return;
-
-  const geojson: GeoJSON.FeatureCollection = {
-    type: 'FeatureCollection',
-    features: facilities.filter((f) => f.latitude != null && f.longitude != null).map((f) => ({
-      type: 'Feature',
-      geometry: { type: 'Point', coordinates: [f.longitude!, f.latitude!] },
-      properties: {
-        id: f.id, name: f.name, facilityType: f.facilityType,
-        color: FACILITY_TYPE_COLORS[f.facilityType],
-        operator: f.operator, lga: f.lga,
-      },
-    })),
-  };
-
-  map.addSource(SRC, { type: 'geojson', data: geojson });
-  map.addLayer({ id: 'facilities-circle', type: 'circle', source: SRC,
-    paint: {
-      'circle-radius': 10,
-      'circle-color': ['get', 'color'],
-      'circle-stroke-width': 2,
-      'circle-stroke-color': '#0f1117',
-      'circle-opacity': 0.9,
-    } });
-  map.addLayer({ id: 'facilities-label', type: 'symbol', source: SRC, minzoom: 11,
-    layout: { 'text-field': ['get', 'name'], 'text-size': 10, 'text-offset': [0, 1.5], 'text-anchor': 'top', 'text-font': ['Open Sans Regular'] },
-    paint: { 'text-color': '#e2e8f0', 'text-halo-color': '#0a0f1a', 'text-halo-width': 1 } });
-}
-
-// ── Water sources layer ───────────────────────────────────────────────────────
-
-function addWaterSourcesLayer(map: maplibregl.Map, sources: WaterSource[]) {
-  const SRC = 'water-sources';
-  if (map.getSource(SRC)) return;
-
-  const geojson: GeoJSON.FeatureCollection = {
-    type: 'FeatureCollection',
-    features: sources.filter((s) => s.latitude != null && s.longitude != null).map((s) => ({
-      type: 'Feature',
-      geometry: { type: 'Point', coordinates: [s.longitude!, s.latitude!] },
-      properties: { id: s.id, name: s.name, sourceType: s.sourceType, lga: s.lga },
-    })),
-  };
-
-  map.addSource(SRC, { type: 'geojson', data: geojson });
-  map.addLayer({ id: 'water-sources-circle', type: 'circle', source: SRC,
-    paint: { 'circle-radius': 7, 'circle-color': '#60a5fa', 'circle-stroke-width': 1.5, 'circle-stroke-color': '#0f1117' },
-    layout: { visibility: 'none' } });
-  map.addLayer({ id: 'water-sources-label', type: 'symbol', source: SRC, minzoom: 12,
-    layout: { 'text-field': ['get', 'name'], 'text-size': 9, 'text-offset': [0, 1.4], 'text-anchor': 'top', 'text-font': ['Open Sans Regular'], visibility: 'none' },
-    paint: { 'text-color': '#60a5fa', 'text-halo-color': '#0a0f1a', 'text-halo-width': 1 } });
-}
-
-// ── Water anomalies layer ─────────────────────────────────────────────────────
-
-function addWaterAnomaliesLayer(map: maplibregl.Map, anomalies: WaterAnomaly[]) {
-  const SRC = 'water-anomalies';
-  if (map.getSource(SRC)) return;
-
-  const geojson: GeoJSON.FeatureCollection = {
-    type: 'FeatureCollection',
-    features: anomalies.filter((a) => a.latitude != null && a.longitude != null).map((a) => ({
-      type: 'Feature',
-      geometry: { type: 'Point', coordinates: [a.longitude!, a.latitude!] },
-      properties: {
-        id: a.id, anomalyType: a.anomalyType, severity: a.severity,
-        color: WATER_ANOMALY_COLORS[a.anomalyType],
-        description: a.description, detectedAt: a.detectedAt,
-      },
-    })),
-  };
-
-  map.addSource(SRC, { type: 'geojson', data: geojson });
-  // Outer pulse ring
-  map.addLayer({ id: 'water-anomalies-pulse', type: 'circle', source: SRC,
-    paint: { 'circle-radius': 14, 'circle-color': ['get', 'color'], 'circle-opacity': 0.25, 'circle-stroke-width': 0 },
-    layout: { visibility: 'none' } });
-  map.addLayer({ id: 'water-anomalies-circle', type: 'circle', source: SRC,
-    paint: { 'circle-radius': 7, 'circle-color': ['get', 'color'], 'circle-stroke-width': 1.5, 'circle-stroke-color': '#ffffff', 'circle-opacity': 0.95 },
-    layout: { visibility: 'none' } });
-}
-
-// ── Waste flow routes (animated timeline) ────────────────────────────────────
-
-const FLOW_STATUS_COLORS: Record<string, string> = {
-  PENDING: '#6b7280', COLLECTED: '#22c55e',
-  IN_TRANSIT: '#f59e0b', DELIVERED: '#3b82f6', PROCESSED: '#8b5cf6',
-};
-
-function buildFlowRoutesGeoJSON(flows: WasteFlow[]): GeoJSON.FeatureCollection {
-  return {
-    type: 'FeatureCollection',
-    features: flows
-      .filter((f) => f.originLat != null && f.originLng != null && f.destinationFacility?.latitude != null)
-      .map((f) => ({
-        type: 'Feature',
-        geometry: {
-          type: 'LineString',
-          coordinates: [
-            [f.originLng!, f.originLat!],
-            [f.destinationFacility!.longitude!, f.destinationFacility!.latitude!],
-          ],
-        },
-        properties: { status: f.status, color: FLOW_STATUS_COLORS[f.status] ?? '#6b7280', wasteType: f.wasteType },
-      })),
-  };
-}
-
-function addWasteFlowRoutesLayer(map: maplibregl.Map, flows: WasteFlow[]) {
-  const SRC = 'waste-flow-routes';
-  if (map.getSource(SRC)) return;
-
-  map.addSource(SRC, { type: 'geojson', data: buildFlowRoutesGeoJSON(flows) });
-  map.addLayer({
-    id: 'waste-flow-routes-line',
-    type: 'line',
-    source: SRC,
-    layout: { 'line-join': 'round', 'line-cap': 'round' },
-    paint: {
-      'line-color': ['get', 'color'],
-      'line-width': 2,
-      'line-opacity': 0.85,
-      'line-dasharray': [2, 3],
-    },
-  });
-  // Arrow heads at destination
-  map.addLayer({
-    id: 'waste-flow-routes-arrow',
-    type: 'circle',
-    source: SRC,
-    filter: ['!=', 'status', 'PENDING'],
-    paint: {
-      'circle-radius': 5,
-      'circle-color': ['get', 'color'],
-      'circle-stroke-width': 1.5,
-      'circle-stroke-color': '#0f1117',
-      'circle-opacity': 0.9,
-    },
-  });
-}
-
-// ── Flood zones layer ─────────────────────────────────────────────────────────
-// Flood zones have polygon boundaries stored in PostGIS. The API returns the
-// zone metadata; the actual polygon geometry is fetched separately via GeoJSON
-// export (not yet wired — placeholder circles represent centroids for now).
-
-function addFloodZonesLayer(map: maplibregl.Map, zones: FloodZone[]) {
-  const SRC = 'flood-zones';
-  if (map.getSource(SRC)) return;
-
-  const RISK_COLORS: Record<string, string> = {
-    LOW: '#22c55e', MEDIUM: '#f59e0b', HIGH: '#ef4444',
-  };
-
-  // Placeholder: zones without boundary GeoJSON rendered as radius circles at LGA centroids.
-  // Replace with actual polygon GeoJSON when boundary export endpoint is implemented.
-  const geojson: GeoJSON.FeatureCollection = {
-    type: 'FeatureCollection',
-    features: zones.map((z) => ({
-      type: 'Feature',
-      geometry: {
-        // Use Port Harcourt centre as fallback; real boundaries loaded via /flood-zones/{id}/geojson
-        type: 'Point',
-        coordinates: [7.0134, 4.8396],
-      },
-      properties: {
-        id: z.id,
-        name: z.name ?? 'Flood zone',
-        riskLevel: z.riskLevel,
-        color: RISK_COLORS[z.riskLevel] ?? '#f59e0b',
-        lga: z.lga,
-      },
-    })),
-  };
-
-  map.addSource(SRC, { type: 'geojson', data: geojson });
-  map.addLayer({ id: 'flood-zones-fill', type: 'circle', source: SRC,
-    paint: {
-      'circle-radius': ['interpolate', ['exponential', 2], ['zoom'], 9, 30, 12, 80],
-      'circle-color': ['get', 'color'],
-      'circle-opacity': 0.15,
-    },
-    layout: { visibility: 'none' } });
-  map.addLayer({ id: 'flood-zones-outline', type: 'circle', source: SRC,
-    paint: {
-      'circle-radius': ['interpolate', ['exponential', 2], ['zoom'], 9, 30, 12, 80],
-      'circle-color': 'transparent',
-      'circle-stroke-width': 1.5,
-      'circle-stroke-color': ['get', 'color'],
-      'circle-stroke-opacity': 0.6,
-    },
-    layout: { visibility: 'none' } });
 }
