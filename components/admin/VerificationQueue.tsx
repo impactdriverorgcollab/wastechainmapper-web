@@ -117,7 +117,7 @@ export function VerificationQueue() {
 
       {data.length === 0 ? (
         <EmptyState title="The queue is empty">
-          New reports from the news scraper and WhatsApp appear here, including stories it could not place, which you can place by hand. If you expected some, the last scrape may simply have found no relevant news. It runs at 7:00 and 19:00, and you can run it by hand with a longer look-back (see the scraper README).
+          New reports from the news scraper, the public form, email and field ambassadors appear here, including stories it could not place, which you can place by hand. If you expected some, the last scrape may simply have found no relevant news. It runs at 7:00 and 19:00, and you can run it by hand with a longer look-back (see the scraper README).
         </EmptyState>
       ) : (
         <>
@@ -136,6 +136,8 @@ export function VerificationQueue() {
                 places={places}
                 onAction={choose}
                 onPlace={place}
+                token={token ?? ''}
+                onChanged={() => void mutate()}
               />
             ))}
           </div>

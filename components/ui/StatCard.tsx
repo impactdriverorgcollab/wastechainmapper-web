@@ -11,7 +11,7 @@ export function StatCard({ label, value, note }: { label: ReactNode; value: Reac
     <div className="rounded-lg bg-panel p-4">
       <dd className="tabular text-2xl font-semibold text-fg">{value}</dd>
       <dt className="mt-1 text-sm text-fg-muted">{label}</dt>
-      {note && <p className="mt-1 text-xs text-fg-subtle">{note}</p>}
+      {note && <dd className="mt-1 text-xs text-fg-subtle">{note}</dd>}
     </div>
   );
 }

@@ -9,6 +9,7 @@ import { NOT_RECORDED, formatCoords, formatDate, isWebUrl } from '@/lib/format';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { PlacePicker } from './PlacePicker';
+import { ReviewDetail } from './ReviewDetail';
 
 export type ReviewAction = 'CORROBORATED' | 'FIELD_VERIFIED' | 'REJECTED';
 
@@ -19,6 +20,9 @@ interface Props {
   places: GazetteerEntry[];
   onAction: (report: Report, action: ReviewAction) => void;
   onPlace: (report: Report, placeId: string) => Promise<void>;
+  token: string;
+  /** Called after a photo or duplicate decision, so the queue reloads. */
+  onChanged: () => void;
 }
 
 function confidenceWord(score: number) {
@@ -32,7 +36,7 @@ function sentence(value: string | null) {
 
 const PREVIEW_LENGTH = 320;
 
-export function ReportCard({ report, busy = false, places, onAction, onPlace }: Props) {
+export function ReportCard({ report, busy = false, places, onAction, onPlace, token, onChanged }: Props) {
   const [expanded, setExpanded] = useState(false);
   const score = report.confidenceScore ?? 0;
   const hasCoords = report.geocodedLatitude != null && report.geocodedLongitude != null;
@@ -105,6 +109,8 @@ export function ReportCard({ report, busy = false, places, onAction, onPlace }: 
           </ul>
         )}
 
+        <ReviewDetail report={report} token={token} onChanged={onChanged} />
+
         <div>
           <p className="whitespace-pre-line text-sm text-fg-muted">{text}</p>
           {isLong && (
@@ -131,7 +137,7 @@ export function ReportCard({ report, busy = false, places, onAction, onPlace }: 
             <span className="sr-only">(opens in a new tab)</span>
           </a>
         ) : (
-          <p className="text-sm text-fg-subtle">{report.sourceType === 'WHATSAPP_CITIZEN' ? 'Sent by a citizen on WhatsApp' : NOT_RECORDED}</p>
+          <p className="text-sm text-fg-subtle">{report.sourceType === 'WHATSAPP_CITIZEN' ? 'Sent by a citizen on WhatsApp' : report.sourceType === 'NEWS_SCRAPE' ? NOT_RECORDED : 'Sent directly, with no web link'}</p>
         )}
       </div>
 

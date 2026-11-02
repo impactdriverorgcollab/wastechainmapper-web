@@ -12,7 +12,8 @@ export default function MapPage() {
   return (
     <div className="flex h-dvh flex-col bg-canvas">
       <SiteHeader>
-        <Link href="/admin" className="btn-ghost">Admin</Link>
+        <Link href="/report" className="btn-primary">Report waste</Link>
+        <Link href="/admin" className="btn-ghost">Staff</Link>
       </SiteHeader>
       <main id="main" className="relative min-h-0 flex-1">
         <MapLoader />

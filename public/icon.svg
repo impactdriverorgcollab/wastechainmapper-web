@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="WasteChainMapper">
+  <rect width="512" height="512" rx="96" fill="#0E1218"/>
+  <path d="M256 96c-66 0-112 50-112 112 0 82 112 208 112 208s112-126 112-208c0-62-46-112-112-112z" fill="#6CA9E6"/>
+  <circle cx="256" cy="206" r="44" fill="#0E1218"/>
+</svg>

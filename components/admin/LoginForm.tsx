@@ -17,15 +17,18 @@ export function LoginForm() {
   const formErrorRef = useRef<HTMLParagraphElement>(null);
   const emailRef = useRef<HTMLDivElement>(null);
 
-  // Only follow a return address that stays inside the admin area.
+  // Only follow a return address that stays inside the staff or field areas. Ambassadors and partners
+  // start in the field app, everyone else in the review queue.
   const next = params.get('next');
-  const destination = next && next.startsWith('/admin') && !next.startsWith('//') ? next : '/admin/queue';
+  const safeNext = next && (next.startsWith('/admin') || next.startsWith('/field')) && !next.startsWith('//') ? next : null;
+  const homeFor = (role?: string) => (role === 'AMBASSADOR' ? '/field' : role === 'PARTNER' ? '/admin/exports' : '/admin');
 
   // Someone who is already signed in has no use for this page.
   const session = useSession();
   useEffect(() => {
-    if (session.token) router.replace(destination);
-  }, [session.token, destination, router]);
+    if (session.token) router.replace(safeNext ?? homeFor(session.user?.role));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [session.token, session.user?.role, safeNext, router]);
 
   function focusFirstError(found: typeof errors) {
     requestAnimationFrame(() => {
@@ -55,7 +58,7 @@ export function LoginForm() {
         focusFirstError(blocked);
         return;
       }
-      router.replace(destination);
+      router.replace(safeNext ?? homeFor(user.role));
     } catch (err) {
       const status = err instanceof ApiError ? err.status : 0;
       const form =

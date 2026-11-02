@@ -4,8 +4,8 @@ import Link from 'next/link';
 import { useEffect, useRef } from 'react';
 import { X } from 'lucide-react';
 import type { DumpSite } from '@/lib/types';
-import { SITE_STATUS_LABELS, TIER_INFO, WASTE_TYPE_LABELS } from '@/lib/constants';
-import { formatCoords, formatDate } from '@/lib/format';
+import { BASIS_INFO, RISK_LABELS, SETTING_LABELS, SITE_STATUS_LABELS, TIER_INFO, WASTE_CATEGORY_INFO, WASTE_TYPE_LABELS } from '@/lib/constants';
+import { formatCoords, formatDate, formatNumber } from '@/lib/format';
 import type { PlaceInfo } from './mapLayers';
 
 export type Selection =
@@ -76,7 +76,7 @@ function SiteRows({ site }: { site: DumpSite }) {
   return (
     <>
       <Row
-        label="Confidence"
+        label="How sure"
         value={
           <span className="inline-flex items-center gap-2">
             <span aria-hidden="true" className={`h-2.5 w-2.5 rounded-full ${tier.dotClass}`} />
@@ -86,20 +86,26 @@ function SiteRows({ site }: { site: DumpSite }) {
       />
       <p className="text-fg-muted">{tier.description}.</p>
       <Row label="Status" value={SITE_STATUS_LABELS[site.status]} />
-      <Row label="Waste type" value={WASTE_TYPE_LABELS[site.wasteType]} />
-      <Row label="First seen" value={formatDate(site.firstSeenAt)} />
-      {site.lastConfirmedAt && <Row label="Last confirmed" value={formatDate(site.lastConfirmedAt)} />}
+      <Row label="Kind of waste" value={site.category ? WASTE_CATEGORY_INFO[site.category].label : WASTE_TYPE_LABELS[site.wasteType]} />
+      {site.setting && <Row label="Where" value={SETTING_LABELS[site.setting]} />}
+      {site.risk && site.risk !== 'normal' && <Row label="Attention" value={`${RISK_LABELS[site.risk]}`} />}
+      {site.latestVolumeM3 != null && (
+        <Row
+          label="Volume"
+          value={`about ${formatNumber(site.latestVolumeM3, 1)} m³ (${site.latestVolumeBasis ? BASIS_INFO[site.latestVolumeBasis].label.toLowerCase() : 'estimate'})`}
+        />
+      )}
+      <Row label="First reported" value={formatDate(site.firstSeenAt)} />
+      <Row label="Last recorded" value={formatDate(site.lastObservedAt ?? site.lastConfirmedAt ?? site.firstSeenAt)} />
+      {site.observationCount != null && <Row label="Records" value={`${site.observationCount} observations, ${site.photoCount ?? 0} photos`} />}
       <Row
         label="Coordinates"
         value={<span className="font-mono text-xs">{formatCoords(site.latitude, site.longitude, 5)}</span>}
       />
-      {site.sourceReportIds.length > 0 && (
-        <Row label="Source reports" value={site.sourceReportIds.length} />
-      )}
-      {site.description && <p className="line-clamp-4 break-words border-t border-line pt-2 text-fg-muted">{site.description}</p>}
+      {site.description && <p className="line-clamp-3 break-words border-t border-line pt-2 text-fg-muted">{site.description}</p>}
       <p className="border-t border-line pt-2">
-        <Link href="/stakeholder" className="inline-flex min-h-11 items-center font-semibold text-accent hover:text-accent-hover">
-          Open the site register
+        <Link href={`/sites/${site.id}`} className="inline-flex min-h-11 items-center font-semibold text-accent hover:text-accent-hover">
+          Open the full site record
         </Link>
       </p>
     </>

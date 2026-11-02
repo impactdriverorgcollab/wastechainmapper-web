@@ -26,7 +26,12 @@ export function SiteTable({ sites, showCoordinates = false }: { sites: DumpSite[
         <tbody>
           {sites.map((site) => (
             <tr key={site.id}>
-              <td className="primary">{site.communityName ?? NOT_RECORDED}</td>
+              <td className="primary">
+                <Link href={`/sites/${site.id}`} className="inline-flex min-h-11 items-center text-accent hover:text-accent-hover">
+                  {site.communityName ?? 'Unnamed location'}
+                  <span className="sr-only">, open the site record</span>
+                </Link>
+              </td>
               <td>{site.ward ?? NOT_RECORDED}</td>
               <td>{site.lga ?? NOT_RECORDED}</td>
               <td><TierLabel tier={site.confidenceTier} /></td>

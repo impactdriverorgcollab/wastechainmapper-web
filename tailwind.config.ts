@@ -1,18 +1,31 @@
 import type { Config } from 'tailwindcss';
-import { palette, tierColors } from './lib/palette';
+import plugin from 'tailwindcss/plugin';
+import { themes, triplet, type Theme } from './lib/palette';
 
 // Design tokens. Components use these utilities only, with no arbitrary values.
 //
+//   Colour       two themes, written as CSS variables (see lib/palette.ts). The html element carries
+//                the class "dark" for the dark theme.
 //   Type scale   six sizes: xs 12, sm 14, base 16, lg 20, xl 24, 2xl 32
-//   Radius       DEFAULT 4px for controls, lg 8px for panels and dialogs
+//   Radius       DEFAULT 6px for controls, lg 12px for panels and dialogs
 //   Shadow       raised (menus, map panels) and overlay (dialogs). Flat surfaces have none.
 //   Spacing      Tailwind's 4px scale
+const NAMES: [keyof Theme, string][] = [
+  ['canvas', 'canvas'], ['panel', 'panel'], ['panel2', 'panel-2'], ['panel3', 'panel-3'],
+  ['line', 'line'], ['lineStrong', 'line-strong'],
+  ['fg', 'fg'], ['fgMuted', 'fg-muted'], ['fgSubtle', 'fg-subtle'],
+  ['accent', 'accent'], ['accentHover', 'accent-hover'], ['accentPressed', 'accent-pressed'], ['accentFg', 'accent-fg'], ['accentSoft', 'accent-soft'],
+  ['success', 'success'], ['successSoft', 'success-soft'], ['warning', 'warning'], ['warningSoft', 'warning-soft'],
+  ['danger', 'danger'], ['dangerSoft', 'danger-soft'], ['shadow', 'shadow'],
+  ['tierLow', 'tier-low'], ['tierMedium', 'tier-medium'], ['tierHigh', 'tier-high'],
+];
+
+const vars = (t: Theme) => Object.fromEntries(NAMES.map(([key, css]) => [`--c-${css}`, triplet(t[key] as string)]));
+const c = (css: string) => `rgb(var(--c-${css}) / <alpha-value>)`;
+
 const config: Config = {
-  content: [
-    './app/**/*.{ts,tsx}',
-    './components/**/*.{ts,tsx}',
-    './lib/**/*.{ts,tsx}',
-  ],
+  darkMode: 'class',
+  content: ['./app/**/*.{ts,tsx}', './components/**/*.{ts,tsx}', './lib/**/*.{ts,tsx}'],
   theme: {
     fontSize: {
       xs: ['0.75rem', { lineHeight: '1rem' }],
@@ -22,34 +35,23 @@ const config: Config = {
       xl: ['1.5rem', { lineHeight: '1.875rem' }],
       '2xl': ['2rem', { lineHeight: '2.25rem' }],
     },
-    borderRadius: {
-      none: '0',
-      DEFAULT: '0.25rem',
-      lg: '0.5rem',
-      full: '9999px',
-    },
+    borderRadius: { none: '0', DEFAULT: '0.375rem', lg: '0.75rem', full: '9999px' },
     boxShadow: {
       none: 'none',
-      raised: '0 2px 8px rgba(0, 0, 0, 0.35)',
-      overlay: '0 8px 24px rgba(0, 0, 0, 0.5)',
+      raised: '0 2px 10px rgb(var(--c-shadow) / 0.16)',
+      overlay: '0 10px 30px rgb(var(--c-shadow) / 0.28)',
     },
     extend: {
       colors: {
-        canvas: palette.canvas,
-        panel: { DEFAULT: palette.panel, 2: palette.panel2, 3: palette.panel3 },
-        line: { DEFAULT: palette.line, strong: palette.lineStrong },
-        fg: { DEFAULT: palette.fg, muted: palette.fgMuted, subtle: palette.fgSubtle },
-        accent: {
-          DEFAULT: palette.accent,
-          hover: palette.accentHover,
-          pressed: palette.accentPressed,
-          fg: palette.accentFg,
-          soft: palette.accentSoft,
-        },
-        success: { DEFAULT: palette.success, soft: palette.successSoft },
-        warning: { DEFAULT: palette.warning, soft: palette.warningSoft },
-        danger: { DEFAULT: palette.danger, soft: palette.dangerSoft },
-        tier: tierColors,
+        canvas: c('canvas'),
+        panel: { DEFAULT: c('panel'), 2: c('panel-2'), 3: c('panel-3') },
+        line: { DEFAULT: c('line'), strong: c('line-strong') },
+        fg: { DEFAULT: c('fg'), muted: c('fg-muted'), subtle: c('fg-subtle') },
+        accent: { DEFAULT: c('accent'), hover: c('accent-hover'), pressed: c('accent-pressed'), fg: c('accent-fg'), soft: c('accent-soft') },
+        success: { DEFAULT: c('success'), soft: c('success-soft') },
+        warning: { DEFAULT: c('warning'), soft: c('warning-soft') },
+        danger: { DEFAULT: c('danger'), soft: c('danger-soft') },
+        tier: { low: c('tier-low'), medium: c('tier-medium'), high: c('tier-high') },
       },
       fontFamily: {
         sans: ['var(--font-sans)', 'ui-sans-serif', 'system-ui', 'sans-serif'],
@@ -59,7 +61,14 @@ const config: Config = {
       minWidth: { 11: '2.75rem' },
     },
   },
-  plugins: [],
+  plugins: [
+    plugin(({ addBase }) => {
+      addBase({
+        ':root': { ...vars(themes.light), colorScheme: 'light' },
+        '.dark': { ...vars(themes.dark), colorScheme: 'dark' },
+      });
+    }),
+  ],
 };
 
 export default config;

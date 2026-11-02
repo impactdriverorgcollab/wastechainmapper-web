@@ -45,7 +45,7 @@ function json(status: number, message: string, headers: Record<string, string> =
 const CACHE_MS = 60_000;
 const UPSTREAM_TIMEOUT_MS = 45_000;
 
-interface Reply { status: number; body: string; contentType: string; retryAfter: string | null }
+interface Reply { status: number; body: ArrayBuffer; contentType: string; retryAfter: string | null; cacheControl: string | null }
 const cache = new Map<string, { expires: number; reply: Reply }>();
 const inFlight = new Map<string, Promise<Reply>>();
 
@@ -56,9 +56,10 @@ async function callUpstream(url: string, init: RequestInit): Promise<Reply> {
     const res = await fetch(url, { ...init, signal: controller.signal, cache: 'no-store' });
     return {
       status: res.status,
-      body: await res.text(),
+      body: await res.arrayBuffer(),
       contentType: res.headers.get('content-type') ?? 'application/json',
       retryAfter: res.headers.get('retry-after'),
+      cacheControl: res.headers.get('cache-control'),
     };
   } finally {
     clearTimeout(timer);
@@ -70,7 +71,8 @@ function toResponse(reply: Reply) {
     status: reply.status,
     headers: {
       'Content-Type': reply.contentType,
-      'Cache-Control': 'no-store',
+      // Approved public photos say they can be kept. Everything else is never stored by the browser.
+      'Cache-Control': reply.contentType.startsWith('image/') && reply.cacheControl?.startsWith('public') ? reply.cacheControl : 'no-store',
       ...(reply.retryAfter && { 'Retry-After': reply.retryAfter }),
     },
   });
@@ -79,8 +81,10 @@ function toResponse(reply: Reply) {
 async function forward(req: NextRequest, { params }: { params: { path: string[] } }) {
   const path = params.path.join('/');
 
-  // The API's own documentation is not part of the website.
+  // The API's own documentation is not part of the website. ("api-docs" style paths are the API's, not ours.)
   if (path.startsWith('api/')) return json(404, 'Not found');
+  // The inbound email and social channels are for the email service, not for the browser.
+  if (path.startsWith('ingest/')) return json(404, 'Not found');
 
   const ip = clientIp(req);
   if (tooMany(ip)) return json(429, 'Too many requests. Wait a minute and try again.', { 'Retry-After': '60' });
@@ -100,6 +104,9 @@ async function forward(req: NextRequest, { params }: { params: { path: string[] 
   };
   const contentType = req.headers.get('content-type');
   if (contentType) headers['Content-Type'] = contentType;
+  // Photo uploads prove who sent the report with this header.
+  const uploadToken = req.headers.get('x-upload-token');
+  if (uploadToken) headers['X-Upload-Token'] = uploadToken;
   if (authorization) headers.Authorization = authorization;
   if (WEB_API_KEY) headers['X-API-Key'] = WEB_API_KEY;
 
@@ -134,3 +141,5 @@ async function forward(req: NextRequest, { params }: { params: { path: string[] 
 export const GET = forward;
 export const POST = forward;
 export const PATCH = forward;
+export const PUT = forward;
+export const DELETE = forward;

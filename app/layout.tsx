@@ -1,27 +1,33 @@
 import type { Metadata, Viewport } from 'next';
-import { IBM_Plex_Sans, IBM_Plex_Mono } from 'next/font/google';
-import { palette } from '@/lib/palette';
+import { Public_Sans, IBM_Plex_Mono } from 'next/font/google';
+import { ThemeProvider, THEME_SCRIPT } from '@/lib/theme';
 import './globals.css';
 
 // One family for the interface, a monospace for coordinates and keys. Two weights only.
-const sans = IBM_Plex_Sans({ subsets: ['latin'], weight: ['400', '600'], variable: '--font-sans', display: 'swap' });
+const sans = Public_Sans({ subsets: ['latin'], weight: ['400', '600'], variable: '--font-sans', display: 'swap' });
 const mono = IBM_Plex_Mono({ subsets: ['latin'], weight: ['400'], variable: '--font-mono', display: 'swap' });
 
 export const metadata: Metadata = {
   title: { default: 'WasteChainMapper', template: '%s | WasteChainMapper' },
   description:
-    'A map of illegal dump sites, waste collection and water monitoring across Rivers State and the Niger Delta. Sites found in the news are marked unconfirmed until a reviewer checks them.',
+    'A shared map of waste across Rivers State: where it is dumped, collected and treated. Reports are marked as reported until a reviewer checks them, and every estimate says how it was made.',
 };
 
 export const viewport: Viewport = {
   width: 'device-width',
   initialScale: 1,
-  themeColor: palette.canvas,
+  themeColor: [
+    { media: '(prefers-color-scheme: light)', color: '#EDF1EA' },
+    { media: '(prefers-color-scheme: dark)', color: '#0B1210' },
+  ],
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className={`${sans.variable} ${mono.variable}`}>
+    <html lang="en" className={`${sans.variable} ${mono.variable}`} suppressHydrationWarning>
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: THEME_SCRIPT }} />
+      </head>
       <body>
         <a
           href="#main"
@@ -29,7 +35,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         >
           Skip to content
         </a>
-        {children}
+        <ThemeProvider>{children}</ThemeProvider>
       </body>
     </html>
   );
