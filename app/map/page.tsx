@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
+import { AccountLink } from '@/components/account/AccountLink';
 import { SiteHeader } from '@/components/layout/SiteHeader';
 import { MapLoader } from '@/components/map/MapLoader';
 
@@ -13,7 +14,7 @@ export default function MapPage() {
     <div className="flex h-dvh flex-col bg-canvas">
       <SiteHeader>
         <Link href="/report" className="btn-primary">Report waste</Link>
-        <Link href="/admin" className="btn-ghost">Staff</Link>
+        <AccountLink />
       </SiteHeader>
       <main id="main" className="relative min-h-0 flex-1">
         <MapLoader />

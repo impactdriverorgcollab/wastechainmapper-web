@@ -5,7 +5,8 @@ import type {
   FlowStatRow, BenchmarkRow, ImportKind, ImportResult, RecyclableRow, WaterDashboard, GazetteerEntry,
   ApiKeyRow, ApiKeyTier, ApiKeyTierInfo, IssuedApiKey, VerificationStatus,
   Paged, WasteSite, SiteDetail, SiteContext, Journey, Hotspot, CoverageRow, ProximitySummary, AreaCheck, SummaryV1,
-  DataQualityItem, DataSourceRow, UserRow, UserRole, AuditRow, SubmitResult, SubmissionInput, ObservationDetail, EvidenceItem,
+  AreaMention, DataQualityItem, DataSourceRow, UserRow, UserRole, AuditRow, SubmitResult, SubmissionInput, ObservationDetail, EvidenceItem,
+  LeaderboardResponse, PublicContributor, MyRecord, OwnProfile, ProfileReviewRow, ProfileStatus,
 } from './types';
 
 // Requests go to the website's own server (app/backend), which adds the website's API key and
@@ -229,6 +230,34 @@ export function login(email: string, password: string) {
   });
 }
 
+/** Signs in with either an email address or a phone number. */
+export function signIn(contact: string, password: string) {
+  return apiFetch<{ accessToken: string; user: AuthUser }>('/auth/login', {
+    method: 'POST',
+    body: JSON.stringify({ ...(contact.includes('@') ? { email: contact } : { phone: contact }), password }),
+  });
+}
+
+export function register(dto: { displayName: string; email?: string; phone?: string; password: string; website?: string }) {
+  return apiFetch<{ accessToken: string; user: AuthUser }>('/auth/register', { method: 'POST', body: JSON.stringify(dto) });
+}
+
+export function forgotPassword(email: string) {
+  return apiFetch<unknown>('/auth/forgot-password', { method: 'POST', body: JSON.stringify({ email }) });
+}
+
+export function resetPassword(token: string, password: string) {
+  return apiFetch<unknown>('/auth/reset-password', { method: 'POST', body: JSON.stringify({ token, password }) });
+}
+
+export function confirmEmail(token: string) {
+  return apiFetch<unknown>('/auth/confirm-email', { method: 'POST', body: JSON.stringify({ token }) });
+}
+
+export function resendConfirmation(token: string) {
+  return apiFetch<unknown>('/auth/resend-confirmation', { method: 'POST', headers: authHeaders(token) });
+}
+
 export function getMe(token: string) {
   return apiFetch<AuthUser>('/auth/me', { headers: authHeaders(token) });
 }
@@ -276,6 +305,10 @@ export function getSummaryV1() {
   return apiFetch<SummaryV1>('/analytics');
 }
 
+export function getAreaMentions(days = 180) {
+  return apiFetch<{ data: AreaMention[]; meta: { days: number; note: string } }>(`/analytics/area-mentions${query({ days })}`);
+}
+
 export function getProximitySummary(lga?: string) {
   return apiFetch<ProximitySummary>(`/spatial/proximity-summary${query({ lga })}`);
 }
@@ -298,8 +331,9 @@ export function getDataQuality(token: string) {
 
 // ── Submissions and photos ────────────────────────────────────────────────────
 
-export function submitReport(input: SubmissionInput) {
-  return apiFetch<SubmitResult>('/reports', { method: 'POST', body: JSON.stringify(input) });
+/** Send the login token when there is one, so the report counts towards that person's record. */
+export function submitReport(input: SubmissionInput, token?: string | null) {
+  return apiFetch<SubmitResult>('/reports', { method: 'POST', body: JSON.stringify(input), headers: token ? authHeaders(token) : undefined });
 }
 
 export function submitFieldReport(input: SubmissionInput, token: string) {
@@ -318,6 +352,10 @@ export function uploadPhoto(reportId: string, uploadToken: string, dataUrl: stri
 
 export function reviewPhoto(id: string, patch: { publicApproved?: boolean; containsPeople?: boolean; caption?: string }, token: string) {
   return apiFetch<EvidenceItem>(`/evidence/${id}`, { method: 'PATCH', body: JSON.stringify(patch), headers: authHeaders(token) });
+}
+
+export function removePin(reportId: string, siteId: string, token: string) {
+  return apiFetch<{ hidden: boolean; movedTo: string | null }>(`/reports/${reportId}/pins/${siteId}/remove`, { method: 'POST', headers: authHeaders(token) });
 }
 
 export function resolveDuplicate(reportId: string, action: 'DISMISS' | 'MERGE', token: string) {
@@ -400,6 +438,36 @@ export async function downloadExport(path: string, filename: string, token?: str
   a.click();
   a.remove();
   URL.revokeObjectURL(url);
+}
+
+// ── Contributors ──────────────────────────────────────────────────────────────
+
+export function getLeaderboard(period: 'all' | 'recent') {
+  return apiFetch<LeaderboardResponse>(`/contributors/leaderboard${query({ period })}`);
+}
+
+export function getContributor(code: string) {
+  return apiFetch<PublicContributor>(`/contributors/${encodeURIComponent(code)}`);
+}
+
+export function getMyRecord(token: string) {
+  return apiFetch<MyRecord>('/contributors/me', { headers: authHeaders(token) });
+}
+
+export function requestProfile(publicName: string, token: string) {
+  return apiFetch<OwnProfile>('/contributors/me/profile', { method: 'PUT', body: JSON.stringify({ publicName, consent: true }), headers: authHeaders(token) });
+}
+
+export function withdrawProfile(token: string) {
+  return apiFetch<unknown>('/contributors/me/profile', { method: 'DELETE', headers: authHeaders(token) });
+}
+
+export function listProfiles(status: ProfileStatus, token: string) {
+  return apiFetch<ProfileReviewRow[]>(`/contributors/review${query({ status })}`, { headers: authHeaders(token) });
+}
+
+export function reviewProfile(userId: string, decision: 'APPROVE' | 'DECLINE', note: string | undefined, token: string) {
+  return apiFetch<unknown>(`/contributors/review/${userId}`, { method: 'POST', body: JSON.stringify({ decision, note }), headers: authHeaders(token) });
 }
 
 // ── LGA engagement (brief section 4B) ─────────────────────────────────────────

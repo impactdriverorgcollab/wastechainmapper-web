@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import type { ReactNode } from 'react';
+import { AccountLink } from '@/components/account/AccountLink';
 import { Wordmark } from './Logo';
 import { SiteHeader } from './SiteHeader';
 
@@ -11,7 +12,7 @@ export function PageShell({ children, wide = false }: { children: ReactNode; wid
     <div className="flex min-h-dvh flex-col">
       <SiteHeader>
         <Link href="/report" className="btn-primary">Report waste</Link>
-        <Link href="/admin" className="btn-ghost">Staff</Link>
+        <AccountLink />
       </SiteHeader>
       <main id="main" className={`mx-auto w-full flex-1 px-4 py-6 sm:px-6 sm:py-10 ${wide ? 'max-w-7xl' : 'max-w-6xl'}`}>{children}</main>
       <footer className="border-t border-line bg-panel">
@@ -25,7 +26,7 @@ export function PageShell({ children, wide = false }: { children: ReactNode; wid
           <nav aria-label="Footer" className="text-sm">
             <p className="font-semibold text-fg">Explore</p>
             <ul className="mt-2 space-y-1">
-              {[['/map', 'Map'], ['/hotspots', 'Hotspots'], ['/report', 'Report waste'], ['/about', 'How the data works'], ['/developers', 'API for developers']].map(([href, label]) => (
+              {[['/map', 'Map'], ['/hotspots', 'Hotspots'], ['/report', 'Report waste'], ['/leaderboard', 'Leaderboard'], ['/about', 'How the data works'], ['/developers', 'API for developers']].map(([href, label]) => (
                 <li key={href}><Link href={href} className="inline-flex min-h-11 items-center text-fg-muted hover:text-fg">{label}</Link></li>
               ))}
             </ul>

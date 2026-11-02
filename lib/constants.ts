@@ -1,4 +1,5 @@
 import type {
+  ContributorKind,
   ConfidenceTier, WasteType, FacilityType, WaterSourceType, WaterAnomalyType,
   FloodRiskLevel, FlowStatus, SiteStatus, VerificationStatus, GeocodeStatus, ReportSourceType,
   WasteCategory, SiteSetting, SiteClass, EstimateBasis, WasteLevelTrend, JourneyStage, UserRole, Confidence,
@@ -200,6 +201,20 @@ export const USER_ROLE_LABELS: Record<UserRole, string> = {
   AMBASSADOR: 'LGA ambassador',
   PARTNER: 'Institutional partner',
   PUBLIC_VIEWER: 'Public account',
+  REPORTER: 'Public reporter',
+};
+
+export const CONTRIBUTOR_KIND_LABELS: Record<ContributorKind, string> = {
+  AMBASSADOR: 'LGA ambassador',
+  REPORTER: 'Public reporter',
+};
+
+/** How a report stands, in the words a contributor sees. */
+export const RECORD_STATUS_INFO: Record<VerificationStatus, { label: string; tone: 'neutral' | 'success' | 'accent' | 'danger' }> = {
+  UNVERIFIED: { label: 'Waiting for review', tone: 'neutral' },
+  CORROBORATED: { label: 'Desk-checked', tone: 'accent' },
+  FIELD_VERIFIED: { label: 'Field-verified', tone: 'success' },
+  REJECTED: { label: 'Not accepted', tone: 'danger' },
 };
 
 export const REFERENCE_KIND_LABELS = {

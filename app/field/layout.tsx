@@ -9,7 +9,7 @@ import { SiteHeader, type NavItem } from '@/components/layout/SiteHeader';
 import { Skeleton } from '@/components/ui/Skeleton';
 
 const FIELD_ROLES = ['AMBASSADOR', 'ADMIN', 'FIELD_VERIFIER', 'PARTNER'];
-const LINKS: NavItem[] = [{ href: '/field', label: 'Field records' }, { href: '/map', label: 'Map' }];
+const LINKS: NavItem[] = [{ href: '/field', label: 'Field records' }, { href: '/account', label: 'My record' }, { href: '/map', label: 'Map' }];
 
 export default function FieldLayout({ children }: { children: ReactNode }) {
   const router = useRouter();

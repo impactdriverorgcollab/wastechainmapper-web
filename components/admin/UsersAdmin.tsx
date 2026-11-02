@@ -13,7 +13,9 @@ import { SelectField, TextField } from '@/components/ui/Field';
 import { TableSkeleton } from '@/components/ui/Skeleton';
 import { ErrorState } from '@/components/ui/States';
 
-const ROLES: UserRole[] = ['ADMIN', 'FIELD_VERIFIER', 'AMBASSADOR', 'PARTNER'];
+const ROLES: UserRole[] = ['ADMIN', 'FIELD_VERIFIER', 'AMBASSADOR', 'PARTNER', 'REPORTER'];
+
+const contactOf = (u: UserRow) => u.email ?? u.phone ?? 'this account';
 
 interface FormState { email: string; password: string; displayName: string; role: UserRole; organisation: string; lgas: string[] }
 
@@ -84,13 +86,13 @@ export function UsersAdmin() {
         await updateUser(mode.user.id, {
           displayName: f.displayName, role: f.role, organisation: f.organisation, assignedLgas: f.lgas, ...(f.password && { password: f.password }),
         }, token);
-        setMessage(`Saved ${mode.user.email}.`);
+        setMessage(`Saved ${contactOf(mode.user)}.`);
       } else {
         const created = await createUser({
           email: f.email.trim(), password: f.password, displayName: f.displayName || undefined, role: f.role,
           organisation: f.organisation || undefined, assignedLgas: f.lgas,
         }, token);
-        setMessage(created.ambassadorCode ? `Created ${created.email}. Their ambassador ID is ${created.ambassadorCode}.` : `Created ${created.email}.`);
+        setMessage(created.ambassadorCode ? `Created ${contactOf(created)}. Their ambassador ID is ${created.ambassadorCode}.` : `Created ${contactOf(created)}.`);
       }
       setMode(null);
       await mutate();
@@ -106,7 +108,7 @@ export function UsersAdmin() {
     setBusy(true);
     try {
       await updateUser(u.id, { isActive: !u.isActive }, token);
-      setMessage(`${u.email} is now ${u.isActive ? 'switched off' : 'switched on'}.`);
+      setMessage(`${contactOf(u)} is now ${u.isActive ? 'switched off' : 'switched on'}.`);
       await mutate();
     } catch (e) {
       setMessage(e instanceof Error ? e.message : 'That did not save.');
@@ -130,7 +132,7 @@ export function UsersAdmin() {
           busy={busy}
           error={formError}
           initial={mode.kind === 'edit'
-            ? { email: mode.user.email, password: '', displayName: mode.user.displayName ?? '', role: mode.user.role, organisation: mode.user.organisation ?? '', lgas: mode.user.assignedLgas }
+            ? { email: mode.user.email ?? '', password: '', displayName: mode.user.displayName ?? '', role: mode.user.role, organisation: mode.user.organisation ?? '', lgas: mode.user.assignedLgas }
             : { email: '', password: '', displayName: '', role: 'AMBASSADOR', organisation: '', lgas: [] }}
           onSubmit={save}
           onCancel={() => { setMode(null); setFormError(null); }}
@@ -149,16 +151,16 @@ export function UsersAdmin() {
           <tbody>
             {data.map((u) => (
               <tr key={u.id}>
-                <td className="primary">{u.displayName ?? u.email}<span className="block text-xs font-normal text-fg-muted">{u.email}{u.organisation ? ` · ${u.organisation}` : ''}</span></td>
+                <td className="primary">{u.displayName ?? contactOf(u)}<span className="block text-xs font-normal text-fg-muted">{contactOf(u)}{u.organisation ? ` · ${u.organisation}` : ''}</span></td>
                 <td>{USER_ROLE_LABELS[u.role]}</td>
                 <td className="font-mono text-xs">{u.ambassadorCode ?? '-'}</td>
                 <td>{u.assignedLgas.length ? u.assignedLgas.join(', ') : '-'}</td>
                 <td>{u.isActive ? <Badge tone="success">Active</Badge> : <Badge>Switched off</Badge>}</td>
                 <td>
                   <div className="flex gap-2">
-                    <Button onClick={() => { setMode({ kind: 'edit', user: u }); setMessage(null); }}>Edit<span className="sr-only"> {u.email}</span></Button>
+                    <Button onClick={() => { setMode({ kind: 'edit', user: u }); setMessage(null); }}>Edit<span className="sr-only"> {contactOf(u)}</span></Button>
                     <Button onClick={() => (u.isActive ? setToggle(u) : void flip(u))} disabled={u.id === me?.id}>
-                      {u.isActive ? 'Switch off' : 'Switch on'}<span className="sr-only"> {u.email}</span>
+                      {u.isActive ? 'Switch off' : 'Switch on'}<span className="sr-only"> {contactOf(u)}</span>
                     </Button>
                   </div>
                 </td>
@@ -168,7 +170,7 @@ export function UsersAdmin() {
         </table>
       </div>
 
-      <ConfirmDialog open={!!toggle} title={`Switch off ${toggle?.email ?? ''}?`} confirmLabel="Switch off" tone="danger" loading={busy} onCancel={() => setToggle(null)} onConfirm={() => toggle && flip(toggle)}>
+      <ConfirmDialog open={!!toggle} title={`Switch off ${toggle ? contactOf(toggle) : ''}?`} confirmLabel="Switch off" tone="danger" loading={busy} onCancel={() => setToggle(null)} onConfirm={() => toggle && flip(toggle)}>
         <p className="text-sm">They will not be able to sign in. Their past records stay. You can switch the account back on later.</p>
       </ConfirmDialog>
     </div>

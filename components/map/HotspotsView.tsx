@@ -77,6 +77,7 @@ export function HotspotsView() {
 
   useEffect(() => {
     if (!containerRef.current || mapRef.current) return;
+    appliedTheme.current = theme;
     const map = new maplibregl.Map({
       container: containerRef.current, style: mapStyleFor(theme, 'streets'), center: RIVERS_STATE_CENTER, zoom: RIVERS_STATE_ZOOM - 0.5, attributionControl: false,
     });
@@ -94,10 +95,12 @@ export function HotspotsView() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const first = useRef(true);
+  const appliedTheme = useRef('');
   useEffect(() => {
-    if (first.current) { first.current = false; return; }
-    mapRef.current?.setStyle(mapStyleFor(theme, 'streets'));
+    if (!mapRef.current || appliedTheme.current === theme) return;
+    appliedTheme.current = theme;
+    // diff: false forces a full reload, so "style.load" fires and our layers are added back.
+    mapRef.current.setStyle(mapStyleFor(theme, 'streets'), { diff: false });
   }, [theme]);
 
   useEffect(() => {

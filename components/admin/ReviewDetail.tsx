@@ -10,6 +10,7 @@ import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { EstimateRow } from '@/components/ui/Provenance';
 import { Skeleton } from '@/components/ui/Skeleton';
+import { StoryPins } from './StoryPins';
 
 function PhotoTile({ item, index, token, onChanged }: { item: EvidenceItem; index: number; token: string; onChanged: () => void }) {
   const [src, setSrc] = useState<string | null>(null);
@@ -97,7 +98,8 @@ export function ReviewDetail({ report, token, onChanged }: Props) {
     }
   }
 
-  if (!o && !(report.evidence && report.evidence.length) && !hasDuplicate) return null;
+  const pins = report.pins ?? [];
+  if (!o && !(report.evidence && report.evidence.length) && !hasDuplicate && pins.length === 0) return null;
 
   const comp = o?.composition ? Object.entries(o.composition) : [];
   const flags = [
@@ -125,6 +127,8 @@ export function ReviewDetail({ report, token, onChanged }: Props) {
           {dupError && <p className="field-error">{dupError}</p>}
         </div>
       )}
+
+      {pins.length > 0 && <StoryPins reportId={report.id} pins={pins} token={token} onChanged={onChanged} />}
 
       {o && (
         <div>

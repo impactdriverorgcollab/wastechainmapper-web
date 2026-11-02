@@ -1,6 +1,6 @@
 import maplibregl from 'maplibre-gl';
 import type {
-  CollectionPoint, DumpSite, Facility, FloodZone, HeatmapPoint, Hotspot, WasteFlow, WaterAnomaly, WaterSource,
+  AreaMention, CollectionPoint, DumpSite, Facility, FloodZone, HeatmapPoint, Hotspot, WasteFlow, WaterAnomaly, WaterSource,
 } from '@/lib/types';
 import {
   FACILITY_TYPE_COLORS, FACILITY_TYPE_LABELS, FLOOD_RISK_COLORS, FLOOD_RISK_LABELS, FLOW_STATUS_COLORS,
@@ -12,6 +12,7 @@ import { registerPins } from './pins';
 export type LayerId =
   | 'dump-sites'
   | 'hotspots'
+  | 'area-mentions'
   | 'heatmap'
   | 'collection-points'
   | 'facilities'
@@ -30,6 +31,7 @@ export type LayerId =
 export const LAYER_MAP: Record<LayerId, string[]> = {
   'dump-sites': ['sites-cluster', 'sites-cluster-count', 'sites-pin'],
   hotspots: ['hotspots-fill', 'hotspots-ring'],
+  'area-mentions': ['area-fill', 'area-line', 'area-label'],
   heatmap: ['heatmap-layer'],
   'collection-points': ['cp-radius', 'cp-circle', 'cp-label'],
   facilities: ['facilities-circle', 'facilities-label'],
@@ -48,6 +50,7 @@ export const LAYER_MAP: Record<LayerId, string[]> = {
 export const DEFAULT_ENABLED: Record<LayerId, boolean> = {
   'dump-sites': true,
   hotspots: true,
+  'area-mentions': true,
   heatmap: false,
   'collection-points': true,
   facilities: true,
@@ -68,6 +71,8 @@ export interface PlaceInfo {
   title: string;
   subtitle?: string;
   rows: [label: string, value: string][];
+  /** Links shown under the rows, such as the stories behind an area count. */
+  links?: { label: string; href: string }[];
 }
 
 // ── Hotspot severity ──────────────────────────────────────────────────────────
@@ -106,6 +111,25 @@ export function hotspotsToGeoJSON(items: Hotspot[]): GeoJSON.FeatureCollection {
       title: h.communities[0] ?? 'Unnamed area', lga: h.lga, lastObservedAt: h.lastObservedAt, verified: h.verifiedSiteCount,
     })),
   };
+}
+
+/** The area outlines that have stories, each carrying its count and latest headlines. */
+export function areaMentionsToGeoJSON(areas: GeoJSON.FeatureCollection | undefined, rows: AreaMention[]): GeoJSON.FeatureCollection {
+  const out: GeoJSON.Feature[] = [];
+  for (const f of areas?.features ?? []) {
+    const row = rows.find((r) => r.lga === f.properties?.name);
+    if (!row) continue;
+    out.push({
+      ...f,
+      properties: {
+        lga: row.lga, stories: row.stories, latestAt: row.latestAt,
+        label: `${row.stories} ${row.stories === 1 ? 'story' : 'stories'}`,
+        // Map properties must be plain values, so the list travels as text.
+        recent: JSON.stringify(row.recent),
+      },
+    });
+  }
+  return { type: 'FeatureCollection', features: out };
 }
 
 export function collectionPointsToGeoJSON(items: CollectionPoint[]): GeoJSON.FeatureCollection {
@@ -332,7 +356,7 @@ export function addAllLayers(map: maplibregl.Map, c: Theme) {
   };
   const layer = (spec: maplibregl.LayerSpecification) => { if (!map.getLayer(spec.id)) map.addLayer(spec); };
 
-  for (const id of ['lga', 'flood-zones', 'ref-waterways', 'ref-drains', 'ref-schools', 'ref-health', 'area-check', 'nearest-lines',
+  for (const id of ['lga', 'area-mentions', 'flood-zones', 'ref-waterways', 'ref-drains', 'ref-schools', 'ref-health', 'area-check', 'nearest-lines',
     'waste-routes', 'heatmap-data', 'hotspots', 'collection-points', 'facilities', 'water-sources', 'water-anomalies', 'draw', 'search-pin']) {
     source(id);
   }
@@ -344,6 +368,14 @@ export function addAllLayers(map: maplibregl.Map, c: Theme) {
   layer({ id: 'lga-label', type: 'symbol', source: 'lga', minzoom: 8, maxzoom: 12,
     layout: { 'text-field': ['get', 'name'], 'text-size': 13, 'text-letter-spacing': 0.08 },
     paint: { 'text-color': c.fgMuted, 'text-halo-color': c.mapHalo, 'text-halo-width': 1.5 } });
+
+  // News stories counted by area: a tint over the whole area, because no exact place is known
+  layer({ id: 'area-fill', type: 'fill', source: 'area-mentions',
+    paint: { 'fill-color': c.severity[1], 'fill-opacity': ['interpolate', ['linear'], ['get', 'stories'], 1, 0.14, 10, 0.4] } });
+  layer({ id: 'area-line', type: 'line', source: 'area-mentions', paint: { 'line-color': c.severity[2], 'line-width': 1.5, 'line-opacity': 0.8 } });
+  layer({ id: 'area-label', type: 'symbol', source: 'area-mentions', maxzoom: 13,
+    layout: { 'text-field': ['get', 'label'], 'text-size': 13 },
+    paint: { 'text-color': c.fg, 'text-halo-color': c.mapHalo, 'text-halo-width': 2 } });
 
   // Flood zones
   layer({ id: 'flood-zones-fill', type: 'fill', source: 'flood-zones', paint: { 'fill-color': ['get', 'color'], 'fill-opacity': 0.2 } });
@@ -457,6 +489,21 @@ const rows = (...pairs: [string, string | null][]): [string, string][] =>
 
 export function placeFromFeature(layerId: string, p: Props): PlaceInfo | null {
   switch (layerId) {
+    case 'area-fill': {
+      const stories = Number(p.stories);
+      let recent: { title: string; url: string }[] = [];
+      try { recent = JSON.parse(String(p.recent)); } catch { /* the rows still show */ }
+      return {
+        title: str(p.lga) ?? 'Area',
+        subtitle: 'News stories that name this area, with no exact place',
+        rows: rows(
+          ['Stories', String(stories)],
+          ['Latest', p.latestAt ? new Date(String(p.latestAt)).toLocaleDateString('en-NG', { day: 'numeric', month: 'short', year: 'numeric' }) : null],
+          ['Checked', 'Not checked by a reviewer'],
+        ),
+        links: recent.filter((r) => /^https?:\/\//.test(r.url)).map((r) => ({ label: r.title, href: r.url })),
+      };
+    }
     case 'hotspots-fill':
       return {
         title: str(p.title) ?? 'Hotspot',
@@ -532,5 +579,5 @@ export function placeFromFeature(layerId: string, p: Props): PlaceInfo | null {
 
 /** Layers a click can select, topmost first. */
 export const CLICKABLE_LAYERS = [
-  'sites-pin', 'water-anomalies-circle', 'facilities-circle', 'cp-circle', 'water-sources-circle', 'hotspots-fill', 'flood-zones-fill',
+  'sites-pin', 'water-anomalies-circle', 'facilities-circle', 'cp-circle', 'water-sources-circle', 'hotspots-fill', 'flood-zones-fill', 'area-fill',
 ];

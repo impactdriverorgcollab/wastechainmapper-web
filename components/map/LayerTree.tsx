@@ -43,6 +43,10 @@ const GROUPS: Group[] = [
         })),
       },
       {
+        id: 'area-mentions', label: 'News by area', color: (c) => c.severity[1], shape: 'area',
+        note: 'Stories that name a local government area but no exact place, so they get no pin. It counts stories, not sites, and nobody has checked them. Tap an area to read them.',
+      },
+      {
         id: 'heatmap', label: 'Density', color: (c) => c.severity[1], shape: 'area',
         legend: (c) => [{ color: c.severity[0], label: 'Few sites nearby', shape: 'area' }, { color: c.severity[3], label: 'Many sites nearby', shape: 'area' }],
       },

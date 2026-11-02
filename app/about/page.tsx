@@ -55,6 +55,17 @@ export default function AboutPage() {
           </p>
         </Section>
 
+        <Section id="people" title="Contributors and the leaderboard">
+          <p>
+            Anyone can report waste without an account. With an account, your reports are kept together on your own record. Each report a reviewer has desk-checked earns 1 point, and each field-verified report earns 3.
+            Reports that are waiting or rejected earn nothing, and a reversed approval takes its points away.
+          </p>
+          <p>
+            A public profile is a choice. You ask for one, a reviewer approves it, and you can take it down at any time. It shows your public name, your approved records and their local government areas. It never shows your contact details, what you wrote, your photos or exact places.{' '}
+            <Link href="/leaderboard" className="text-accent underline underline-offset-2 hover:text-accent-hover">See the leaderboard</Link>.
+          </p>
+        </Section>
+
         <Section id="estimates" title="How estimates are made">
           <p>Every estimate carries the kind of figure it is, how it was made, how sure the person or tool was, and when.</p>
           <ul className="space-y-2">

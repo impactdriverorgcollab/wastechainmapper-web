@@ -42,7 +42,7 @@ export function ConfirmDialog({
       ref={ref}
       aria-labelledby={titleId}
       onCancel={(e) => { e.preventDefault(); if (!loading) onCancel(); }}
-      className="m-auto w-full max-w-md rounded-lg bg-panel-2 p-0 text-fg shadow-overlay backdrop:bg-canvas/80"
+      className="m-auto w-11/12 max-w-md rounded-lg bg-panel-2 p-0 text-fg shadow-overlay backdrop:bg-canvas/80"
     >
       <form onSubmit={submit} className="p-6">
         <h2 id={titleId} className="text-lg font-semibold">{title}</h2>

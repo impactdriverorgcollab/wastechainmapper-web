@@ -92,22 +92,23 @@ export function useSession() {
   }, [raw]);
 }
 
-export function useSignOut() {
+export function useSignOut(to = '/admin/login') {
   const router = useRouter();
   return useCallback(() => {
     clearSession();
-    router.replace('/admin/login');
-  }, [router]);
+    router.replace(to);
+  }, [router, to]);
 }
 
 /**
- * SWR for an endpoint that needs the admin token. Returns nothing until the token is known,
+ * SWR for an endpoint that needs a login token. Returns nothing until the token is known,
  * and sends the user back to sign in when the API answers 401.
  */
 export function useAuthedSWR<T>(
   key: string | null,
   fetcher: (token: string) => Promise<T>,
   config?: SWRConfiguration<T, ApiError>,
+  signInPath = '/admin/login',
 ) {
   const router = useRouter();
   const session = useSession();
@@ -121,9 +122,9 @@ export function useAuthedSWR<T>(
   useEffect(() => {
     if (result.error?.status === 401) {
       clearSession();
-      router.replace('/admin/login');
+      router.replace(signInPath);
     }
-  }, [result.error, router]);
+  }, [result.error, router, signInPath]);
 
   return { ...result, token: session.token, user: session.user, sessionReady: session.ready };
 }

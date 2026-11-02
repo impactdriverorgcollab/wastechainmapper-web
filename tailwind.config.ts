@@ -42,6 +42,9 @@ const config: Config = {
       overlay: '0 10px 30px rgb(var(--c-shadow) / 0.28)',
     },
     extend: {
+      // For panels that only fit on a screen of some height, which rules out a phone held sideways.
+      screens: { tall: { raw: '(min-height: 600px)' } },
+      maxHeight: { menu: 'calc(100dvh - 4rem)' },
       colors: {
         canvas: c('canvas'),
         panel: { DEFAULT: c('panel'), 2: c('panel-2'), 3: c('panel-3') },

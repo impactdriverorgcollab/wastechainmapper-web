@@ -15,7 +15,7 @@ export type WaterSourceType = 'EXTRACTION' | 'DISTRIBUTION' | 'CONSUMPTION' | 'W
 export type WaterAnomalyType = 'LEAK' | 'ILLEGAL_EXTRACTION' | 'CONTAMINATION';
 export type FloodRiskLevel = 'LOW' | 'MEDIUM' | 'HIGH';
 
-export type UserRole = 'ADMIN' | 'FIELD_VERIFIER' | 'PUBLIC_VIEWER' | 'AMBASSADOR' | 'PARTNER';
+export type UserRole = 'ADMIN' | 'FIELD_VERIFIER' | 'PUBLIC_VIEWER' | 'AMBASSADOR' | 'PARTNER' | 'REPORTER';
 
 export interface DumpSite {
   id: string;
@@ -75,6 +75,7 @@ export interface Report {
   duplicateResolved?: boolean;
   observation?: ObservationDetail | null;
   evidence?: EvidenceItem[];
+  pins?: ReportPin[];
 }
 
 export interface CollectionPoint {
@@ -194,9 +195,20 @@ export interface PlatformSummary {
   activeVehicles: number;
 }
 
+export interface ReportPin {
+  id: string;
+  name: string | null;
+  lga: string | null;
+  confidenceTier: ConfidenceTier;
+  main: boolean;
+  removable: boolean;
+}
+
 export interface AuthUser {
   id: string;
-  email: string;
+  email: string | null;
+  phone?: string | null;
+  emailConfirmed?: boolean;
   displayName: string | null;
   role: UserRole;
   ambassadorCode?: string | null;
@@ -461,6 +473,13 @@ export interface SummaryV1 {
   notice: string;
 }
 
+export interface AreaMention {
+  lga: string;
+  stories: number;
+  latestAt: string;
+  recent: { title: string; url: string; at: string }[];
+}
+
 export interface DataQualityItem { key: string; label: string; count: number; href: string }
 
 export interface DataSourceRow {
@@ -478,7 +497,8 @@ export interface DataSourceRow {
 
 export interface UserRow {
   id: string;
-  email: string;
+  email: string | null;
+  phone: string | null;
   displayName: string | null;
   role: UserRole;
   isActive: boolean;
@@ -508,6 +528,87 @@ export interface SubmitResult {
   placed: boolean;
   possibleDuplicate?: boolean;
   repeat?: boolean;
+  /** True when the report is tied to a signed-in account, so it can count towards that person's record. */
+  credited?: boolean;
+}
+
+// ── Contributors ──────────────────────────────────────────────────────────────
+
+export type ContributorKind = 'AMBASSADOR' | 'REPORTER';
+export type ProfileStatus = 'PENDING' | 'APPROVED' | 'DECLINED' | 'WITHDRAWN';
+
+export interface LeaderboardRow {
+  code: string;
+  name: string;
+  kind: ContributorKind;
+  rank: number;
+  points: number;
+  deskChecked: number;
+  fieldVerified: number;
+  lastActive: string | null;
+}
+
+export interface LeaderboardResponse {
+  data: LeaderboardRow[];
+  meta: { period: 'all' | 'recent'; recentDays: number; people: number; points: { deskChecked: number; fieldVerified: number } };
+}
+
+export interface PublicContributor {
+  code: string;
+  name: string;
+  kind: ContributorKind;
+  ambassadorCode: string | null;
+  memberSince: string;
+  reviewedAt: string | null;
+  rank: number | null;
+  points: number;
+  deskChecked: number;
+  fieldVerified: number;
+  lastActive: string | null;
+  areas: { lga: string; records: number }[];
+  records: { reference: string; date: string; lga: string | null; status: VerificationStatus }[];
+}
+
+export interface OwnProfile {
+  code: string;
+  publicName: string;
+  status: ProfileStatus;
+  requestedAt: string;
+  reviewedAt: string | null;
+  reviewNote: string | null;
+}
+
+export interface MyRecord {
+  canHaveProfile: boolean;
+  email: string | null;
+  emailConfirmed: boolean;
+  mailEnabled: boolean;
+  needsEmailConfirmation: boolean;
+  points: number;
+  deskChecked: number;
+  fieldVerified: number;
+  lastActive: string | null;
+  submitted: number;
+  rank: number | null;
+  pointValues: { deskChecked: number; fieldVerified: number };
+  profile: OwnProfile | null;
+  records: { id: string; reference: string; date: string; lga: string | null; place: string | null; status: VerificationStatus; counted: boolean }[];
+}
+
+export interface ProfileReviewRow {
+  userId: string;
+  code: string;
+  publicName: string;
+  status: ProfileStatus;
+  requestedAt: string;
+  reviewedAt: string | null;
+  reviewNote: string | null;
+  user: { displayName: string | null; email: string | null; emailVerifiedAt: string | null; phone: string | null; role: UserRole; isActive: boolean; createdAt: string };
+  points: number;
+  deskChecked: number;
+  fieldVerified: number;
+  lastActive: string | null;
+  submitted: number;
 }
 
 /** The body of a submission, shared by the public form and the field app. */

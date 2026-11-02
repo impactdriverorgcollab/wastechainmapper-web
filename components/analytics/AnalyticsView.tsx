@@ -21,11 +21,11 @@ function BarRow({ label, share, valueLabel, color }: { label: string; share: num
   const width = `${Math.round(Math.min(Math.max(share, 0), 1) * 100)}%`;
   return (
     <li className="flex items-center gap-3 text-sm">
-      <span className="w-28 shrink-0 truncate text-fg-muted sm:w-36" title={label}>{label}</span>
-      <span className="h-2 flex-1 rounded-full bg-panel-3" aria-hidden="true">
+      <span className="w-24 shrink-0 truncate text-fg-muted sm:w-36" title={label}>{label}</span>
+      <span className="h-2 min-w-6 flex-1 rounded-full bg-panel-3" aria-hidden="true">
         <span className="block h-full rounded-full" style={{ width, backgroundColor: color }} />
       </span>
-      <span className="tabular w-16 shrink-0 text-right text-fg">{valueLabel}</span>
+      <span className="tabular min-w-16 shrink-0 whitespace-nowrap text-right text-fg">{valueLabel}</span>
     </li>
   );
 }

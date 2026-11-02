@@ -17,6 +17,7 @@ export const PUBLIC_LINKS: NavItem[] = [
   { href: '/hotspots', label: 'Hotspots' },
   { href: '/stakeholder', label: 'Sites' },
   { href: '/analytics', label: 'Analytics' },
+  { href: '/leaderboard', label: 'Leaderboard' },
   { href: '/flows', label: 'Waste flows' },
   { href: '/water', label: 'Water' },
   { href: '/about', label: 'How it works' },
@@ -60,12 +61,13 @@ export function SiteHeader({ links = PUBLIC_LINKS, section, children }: Props) {
   return (
     <header className="relative z-30 shrink-0 border-b border-line bg-panel">
       <div className="mx-auto flex min-h-16 w-full max-w-7xl items-center justify-between gap-3 px-4 sm:px-6">
-        <Link href="/" className="flex min-h-11 items-center gap-3 rounded" aria-label="WasteChainMapper home">
+        <Link href="/" className="flex min-h-11 shrink-0 items-center gap-3 rounded">
           <Wordmark />
           {section && <span className="hidden rounded bg-panel-3 px-2 py-0.5 text-xs font-semibold text-fg-muted sm:inline">{section}</span>}
+          <span className="sr-only">home</span>
         </Link>
 
-        <nav aria-label="Main" className="hidden items-center gap-1 lg:flex">
+        <nav aria-label="Main" className="hidden min-w-0 flex-wrap items-center gap-1 xl:flex">
           {links.map((l) => (
             <Link key={l.href} href={l.href} className={linkClass(l.href)} aria-current={isCurrent(pathname, l.href) ? 'page' : undefined}>
               {l.label}
@@ -73,13 +75,13 @@ export function SiteHeader({ links = PUBLIC_LINKS, section, children }: Props) {
           ))}
         </nav>
 
-        <div className="flex items-center gap-1">
+        <div className="flex shrink-0 items-center gap-1">
           <ThemeToggle />
-          {children && <div className="hidden items-center gap-1 lg:flex">{children}</div>}
+          {children && <div className="hidden items-center gap-1 xl:flex">{children}</div>}
           <button
             ref={buttonRef}
             type="button"
-            className="btn-ghost lg:hidden"
+            className="btn-ghost xl:hidden"
             aria-expanded={open}
             aria-controls="mobile-menu"
             aria-label={open ? 'Close menu' : 'Open menu'}
@@ -91,7 +93,7 @@ export function SiteHeader({ links = PUBLIC_LINKS, section, children }: Props) {
       </div>
 
       {open && (
-        <nav id="mobile-menu" aria-label="Main" className="absolute inset-x-0 top-full border-b border-line bg-panel shadow-raised lg:hidden">
+        <nav id="mobile-menu" aria-label="Main" className="absolute inset-x-0 top-full max-h-menu overflow-y-auto border-b border-line bg-panel shadow-raised xl:hidden">
           <ul className="mx-auto w-full max-w-7xl px-4 py-2 sm:px-6">
             {links.map((l) => (
               <li key={l.href}>

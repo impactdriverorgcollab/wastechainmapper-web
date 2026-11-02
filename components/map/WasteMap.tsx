@@ -5,9 +5,9 @@ import useSWR from 'swr';
 import Link from 'next/link';
 import maplibregl from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
-import { BarChart3, Clock, Crosshair, Flame, Layers, PanelLeftClose, PanelLeftOpen, PenTool, SlidersHorizontal, Satellite, Map as MapIcon } from 'lucide-react';
+import { BarChart3, Clock, Crosshair, Flame, Layers, PanelLeftClose, PanelLeftOpen, PenTool, SlidersHorizontal, Satellite, X, Map as MapIcon } from 'lucide-react';
 import {
-  getAllWasteSites, getAreaCheck, getCollectionPoints, getFacilities, getFloodZoneGeoJson, getFloodZones,
+  getAllWasteSites, getAreaCheck, getAreaMentions, getCollectionPoints, getFacilities, getFloodZoneGeoJson, getFloodZones,
   getFlowTimeline, getHotspots, getReferenceLayer, getWaterAnomalies, getWaterSources,
 } from '@/lib/api';
 import { RIVERS_STATE_CENTER, RIVERS_STATE_ZOOM } from '@/lib/constants';
@@ -24,7 +24,7 @@ import { MapInsights } from './MapInsights';
 import { DrawCard, HeatControls, MapSearch, SeverityLegend, type FoundPlace } from './MapTools';
 import { TimelineBar } from './TimelineBar';
 import {
-  CLICKABLE_LAYERS, DEFAULT_ENABLED, addAllLayers, applyHeatStyle, applyVisibility, circleToGeoJSON, collectionPointsToGeoJSON,
+  CLICKABLE_LAYERS, DEFAULT_ENABLED, addAllLayers, areaMentionsToGeoJSON, applyHeatStyle, applyVisibility, circleToGeoJSON, collectionPointsToGeoJSON,
   drawToGeoJSON, facilitiesToGeoJSON, floodZonesToGeoJSON, flowRoutesToGeoJSON, heatFromSites, hotspotsToGeoJSON, nearestLinesToGeoJSON,
   placeFromFeature, pointInPolygon, polygonAreaKm2, setSourceData, sitesToGeoJSON, waterAnomaliesToGeoJSON, waterSourcesToGeoJSON,
   type LayerId,
@@ -90,6 +90,7 @@ export default function WasteMap() {
   const [historyDate, setHistoryDate] = useState(() => Date.now());
   const [historyPlaying, setHistoryPlaying] = useState(false);
 
+  const [noticeClosed, setNoticeClosed] = useState(false);
   const [tool, setTool] = useState<Tool>('none');
   const toolRef = useRef<Tool>('none');
   toolRef.current = tool;
@@ -113,7 +114,8 @@ export default function WasteMap() {
   const refDrains = useSWR(enabled.drains ? 'ref-DRAIN' : null, () => getReferenceLayer('DRAIN'), SWR);
   const refSchools = useSWR(enabled.schools ? 'ref-SCHOOL' : null, () => getReferenceLayer('SCHOOL'), SWR);
   const refHealth = useSWR(enabled.health ? 'ref-HEALTH_FACILITY' : null, () => getReferenceLayer('HEALTH_FACILITY'), SWR);
-  const lga = useSWR(enabled.lga ? 'lga-boundaries' : null, () => fetch('/data/lga-boundaries.geojson').then((r) => { if (!r.ok) throw new Error('The area outlines did not load.'); return r.json() as Promise<GeoJSON.FeatureCollection>; }), SWR);
+  const areaMentions = useSWR(enabled['area-mentions'] ? 'area-mentions' : null, () => getAreaMentions(), SWR);
+  const lga = useSWR(enabled.lga || enabled['area-mentions'] ? 'lga-boundaries' : null, () => fetch('/data/lga-boundaries.geojson').then((r) => { if (!r.ok) throw new Error('The area outlines did not load.'); return r.json() as Promise<GeoJSON.FeatureCollection>; }), SWR);
 
   const zones = floodZones.data;
   const floodGeo = useSWR(
@@ -148,6 +150,7 @@ export default function WasteMap() {
 
     const link = readDeepLink();
     pendingSiteId.current = link.siteId;
+    appliedStyle.current = `${theme}|streets`;
     setPanelOpen(window.innerWidth >= 1024);
 
     const map = new maplibregl.Map({
@@ -175,18 +178,18 @@ export default function WasteMap() {
         if (!closedRef.current) setCorners((c) => [...c, [e.lngLat.lng, e.lngLat.lat]]);
         return;
       }
+      // A click on a cluster zooms in, whatever lies under it.
+      const cluster = map.getLayer('sites-cluster') ? map.queryRenderedFeatures(e.point, { layers: ['sites-cluster'] })[0] : undefined;
+      if (cluster) {
+        const src = map.getSource('dump-sites') as maplibregl.GeoJSONSource;
+        src.getClusterExpansionZoom(cluster.properties?.cluster_id).then((zoom) => {
+          map.easeTo({ center: (cluster.geometry as GeoJSON.Point).coordinates as [number, number], zoom });
+        });
+        return;
+      }
       const hit = map.queryRenderedFeatures(e.point, { layers: CLICKABLE_LAYERS.filter((id) => map.getLayer(id)) })[0];
       if (!hit) {
-        // A click on a cluster zooms in. A click on empty map closes the card.
-        const cluster = map.getLayer('sites-cluster') ? map.queryRenderedFeatures(e.point, { layers: ['sites-cluster'] })[0] : undefined;
-        if (cluster) {
-          const src = map.getSource('dump-sites') as maplibregl.GeoJSONSource;
-          src.getClusterExpansionZoom(cluster.properties?.cluster_id).then((zoom) => {
-            map.easeTo({ center: (cluster.geometry as GeoJSON.Point).coordinates as [number, number], zoom });
-          });
-        } else {
-          setSelection(null);
-        }
+        setSelection(null);
         return;
       }
       if (hit.layer.id === 'sites-pin') {
@@ -213,19 +216,23 @@ export default function WasteMap() {
     });
 
     mapRef.current = map;
+    if (process.env.NODE_ENV !== 'production') (window as unknown as { __wcmMap?: maplibregl.Map }).__wcmMap = map;
     return () => { map.remove(); mapRef.current = null; setEpoch(0); };
     // The map is made once. Later theme and background changes are handled below.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // A new theme or background replaces the style, which removes our layers. They are added back on "style.load".
-  const firstStyle = useRef(true);
+  const appliedStyle = useRef('');
   useEffect(() => {
-    if (firstStyle.current) { firstStyle.current = false; return; }
     const map = mapRef.current;
-    if (!map) return;
+    const key = `${theme}|${basemap}`;
+    if (!map || appliedStyle.current === key) return;
+    appliedStyle.current = key;
     setMapError(null);
-    map.setStyle(mapStyleFor(theme, basemap));
+    // diff: false forces a full reload. With a diff MapLibre swaps the style in place, which deletes our
+    // layers and never fires "style.load", so they would not come back.
+    map.setStyle(mapStyleFor(theme, basemap), { diff: false });
   }, [theme, basemap]);
 
   // ── Push each dataset into its source whenever it arrives or changes ───────
@@ -275,6 +282,7 @@ export default function WasteMap() {
   useEffect(() => { withMap((m) => setSourceData(m, 'ref-schools', refSchools.data ?? EMPTY_FC)); }, [withMap, refSchools.data]);
   useEffect(() => { withMap((m) => setSourceData(m, 'ref-health', refHealth.data ?? EMPTY_FC)); }, [withMap, refHealth.data]);
   useEffect(() => { withMap((m) => setSourceData(m, 'lga', lga.data ?? EMPTY_FC)); }, [withMap, lga.data]);
+  useEffect(() => { withMap((m) => setSourceData(m, 'area-mentions', areaMentionsToGeoJSON(lga.data, areaMentions.data?.data ?? []))); }, [withMap, lga.data, areaMentions.data]);
   useEffect(() => {
     withMap((m) => setSourceData(m, 'flood-zones', floodZonesToGeoJSON(zones ?? [], floodGeo.data ?? [])));
   }, [withMap, zones, floodGeo.data]);
@@ -377,6 +385,7 @@ export default function WasteMap() {
   const counts: Partial<Record<LayerId, number>> = {
     'dump-sites': visibleSites.length,
     hotspots: hotspots.data?.data.length,
+    'area-mentions': areaMentions.data?.data.reduce((n, a) => n + a.stories, 0),
     'collection-points': collectionPoints.data?.length,
     facilities: facilities.data?.length,
     'water-sources': waterSources.data?.length,
@@ -454,15 +463,16 @@ export default function WasteMap() {
       </div>
 
       {enabled.hotspots && (hotspots.data?.data.length ?? 0) > 0 && (
-        <div className="pointer-events-none absolute right-3 top-32 z-10 hidden md:block">
+        <div className="pointer-events-none absolute right-3 top-32 z-10 hidden md:tall:block">
           <div className="pointer-events-auto"><SeverityLegend /></div>
         </div>
       )}
 
       <div className="pointer-events-none absolute inset-x-3 top-3 z-10 flex justify-center sm:left-96 sm:pl-8">
         {loading && <p role="status" className="rounded-lg bg-panel px-4 py-2 text-sm text-fg-muted shadow-raised">Loading the map</p>}
-        {!loading && !filtered && sites.data && allSites.length <= 3 && (
-          <div role="status" className="pointer-events-auto mt-12 max-w-md rounded-lg bg-panel p-4 shadow-raised sm:mt-0">
+        {!loading && !filtered && !noticeClosed && sites.data && allSites.length <= 3 && (
+          <div role="status" className="pointer-events-auto relative mt-12 max-w-md rounded-lg bg-panel p-4 pr-12 shadow-raised sm:mt-0">
+            <button type="button" onClick={() => setNoticeClosed(true)} aria-label="Close this message" className="btn-ghost absolute right-1 top-1"><X size={16} aria-hidden="true" /></button>
             <p className="text-sm font-semibold text-fg">{allSites.length === 0 ? 'No sites are on the map yet' : `Only ${allSites.length === 1 ? 'one site is' : `${allSites.length} sites are`} on the map so far`}</p>
             <p className="mt-1 text-sm text-fg-muted">
               A site appears here when a news story names a community, or when someone reports one. Reports and stories that a reviewer has not checked show as reported, with a question mark. Add what you see so the map can grow.
@@ -483,9 +493,9 @@ export default function WasteMap() {
       )}
 
       {/* The cards and bars sit above the map attribution, which must stay readable. */}
-      <div className="pointer-events-none absolute inset-x-3 bottom-10 z-20 flex flex-col items-stretch gap-3 sm:items-end lg:left-96 lg:pl-8">
+      <div className="pointer-events-none absolute inset-x-3 bottom-16 top-28 z-20 flex flex-col items-stretch justify-end gap-3 sm:bottom-10 sm:top-3 sm:items-end lg:left-96 lg:pl-8">
         {(selection || tool !== 'none') && (
-          <div className="pointer-events-auto w-full sm:w-auto">
+          <div className="pointer-events-auto min-h-0 w-full overflow-y-auto rounded-lg sm:w-auto">
             {tool === 'radius' && <AreaCard state={area} picking onRadius={(m) => setArea((a) => (a ? { ...a, radiusM: m, loading: true } : a))} onClose={() => chooseTool('radius')} />}
             {tool === 'draw' && (
               <DrawCard
@@ -497,7 +507,7 @@ export default function WasteMap() {
           </div>
         )}
         {historyOn && (
-          <div className="pointer-events-auto mx-auto w-full max-w-xl">
+          <div className="pointer-events-auto mx-auto w-full max-w-xl shrink-0">
             <HistoryBar
               min={earliest} max={Date.now()} value={Math.min(historyDate, Date.now())} shown={visibleSites.length} total={allSites.length}
               playing={historyPlaying} onChange={setHistoryDate}
@@ -507,7 +517,7 @@ export default function WasteMap() {
           </div>
         )}
         {hasTimeline && flowList && (
-          <div className="pointer-events-auto mx-auto w-full max-w-xl">
+          <div className="pointer-events-auto mx-auto w-full max-w-xl shrink-0">
             <TimelineBar flows={flowList} index={timelineIdx} playing={playing} onIndexChange={setTimelineIdx} onPlayingChange={setPlaying} />
           </div>
         )}

@@ -1,11 +1,26 @@
 import type { Metadata, Viewport } from 'next';
-import { Public_Sans, IBM_Plex_Mono } from 'next/font/google';
+import localFont from 'next/font/local';
 import { ThemeProvider, THEME_SCRIPT } from '@/lib/theme';
+import { TableLabels } from '@/components/ui/TableLabels';
 import './globals.css';
 
 // One family for the interface, a monospace for coordinates and keys. Two weights only.
-const sans = Public_Sans({ subsets: ['latin'], weight: ['400', '600'], variable: '--font-sans', display: 'swap' });
-const mono = IBM_Plex_Mono({ subsets: ['latin'], weight: ['400'], variable: '--font-mono', display: 'swap' });
+// The files are kept in the project (app/fonts, SIL Open Font License). Fetching them from Google when
+// the site compiles failed silently on a bad connection and left the whole site in a fallback font.
+const sans = localFont({
+  src: [
+    { path: './fonts/public-sans-latin-400-normal.woff2', weight: '400', style: 'normal' },
+    { path: './fonts/public-sans-latin-600-normal.woff2', weight: '600', style: 'normal' },
+  ],
+  variable: '--font-sans',
+  display: 'swap',
+});
+const mono = localFont({
+  src: './fonts/ibm-plex-mono-latin-400-normal.woff2',
+  weight: '400',
+  variable: '--font-mono',
+  display: 'swap',
+});
 
 export const metadata: Metadata = {
   title: { default: 'WasteChainMapper', template: '%s | WasteChainMapper' },
@@ -36,6 +51,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           Skip to content
         </a>
         <ThemeProvider>{children}</ThemeProvider>
+        <TableLabels />
       </body>
     </html>
   );

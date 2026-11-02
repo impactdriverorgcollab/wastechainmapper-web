@@ -69,7 +69,7 @@ export function MapSearch({ sites, onPick }: { sites: DumpSite[]; onPick: (p: Fo
         aria-autocomplete="list"
         autoComplete="off"
         value={text}
-        placeholder="Search a community, or type coordinates"
+        placeholder="Place or coordinates"
         onChange={(e) => { setText(e.target.value); setOpen(true); }}
         onFocus={() => setOpen(true)}
         onKeyDown={(e) => {

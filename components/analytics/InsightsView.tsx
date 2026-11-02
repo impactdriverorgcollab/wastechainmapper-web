@@ -24,8 +24,8 @@ function Bars({ rows }: { rows: { label: string; value: number }[] }) {
     <ul className="space-y-2">
       {rows.map((r) => (
         <li key={r.label} className="flex items-center gap-3 text-sm">
-          <span className="w-36 shrink-0 truncate text-fg-muted sm:w-48" title={r.label}>{r.label}</span>
-          <span className="h-2 flex-1 rounded-full bg-panel-3" aria-hidden="true">
+          <span className="w-2/5 shrink-0 truncate text-fg-muted" title={r.label}>{r.label}</span>
+          <span className="h-2 min-w-6 flex-1 rounded-full bg-panel-3" aria-hidden="true">
             <span className="block h-full rounded-full" style={{ width: `${Math.round((r.value / max) * 100)}%`, backgroundColor: dataColors.heat[1] }} />
           </span>
           <span className="tabular w-10 shrink-0 text-right text-fg">{r.value}</span>
@@ -134,7 +134,7 @@ export function InsightsView() {
                       <td className="primary">{REFERENCE_KIND_LABELS[kind as keyof typeof REFERENCE_KIND_LABELS] ?? kind}</td>
                       <td className="num">{formatNumber(v.featuresLoaded)}</td>
                       {v.featuresLoaded === 0
-                        ? <td className="num text-fg-subtle" colSpan={3}>No data loaded</td>
+                        ? <td className="num !whitespace-normal text-fg-subtle" colSpan={3}>No data loaded</td>
                         : <><td className="num">{v.within250}</td><td className="num">{v.within500}</td><td className="num">{v.within1000}</td></>}
                     </tr>
                   ))}
@@ -142,8 +142,8 @@ export function InsightsView() {
                     <td className="primary">Flood-risk zone</td>
                     <td className="num">{proximity.data.floodZones.zonesLoaded}</td>
                     {proximity.data.floodZones.zonesLoaded === 0
-                      ? <td className="num text-fg-subtle" colSpan={3}>No boundaries loaded</td>
-                      : <td className="num" colSpan={3}>{proximity.data.floodZones.sitesInside.length === 0 ? 'No sites inside a zone' : proximity.data.floodZones.sitesInside.map((z) => `${z.sites} inside ${FLOOD_RISK_LABELS[z.risk as keyof typeof FLOOD_RISK_LABELS]?.toLowerCase() ?? z.risk} zones`).join(', ')}</td>}
+                      ? <td className="num !whitespace-normal text-fg-subtle" colSpan={3}>No boundaries loaded</td>
+                      : <td className="num !whitespace-normal" colSpan={3}>{proximity.data.floodZones.sitesInside.length === 0 ? 'No sites inside a zone' : proximity.data.floodZones.sitesInside.map((z) => `${z.sites} inside ${FLOOD_RISK_LABELS[z.risk as keyof typeof FLOOD_RISK_LABELS]?.toLowerCase() ?? z.risk} zones`).join(', ')}</td>}
                   </tr>
                 </tbody>
               </table>

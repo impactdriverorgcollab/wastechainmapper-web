@@ -64,7 +64,20 @@ export function DetailsCard({ selection, onClose }: { selection: Selection; onCl
         {selection.kind === 'site' ? (
           <SiteRows site={selection.site} />
         ) : (
-          selection.place.rows.map(([label, value]) => <Row key={label} label={label} value={value} />)
+          <>
+            {selection.place.rows.map(([label, value]) => <Row key={label} label={label} value={value} />)}
+            {selection.place.links && selection.place.links.length > 0 && (
+              <ul className="space-y-1 border-t border-line pt-2">
+                {selection.place.links.map((l) => (
+                  <li key={l.href}>
+                    <a href={l.href} target="_blank" rel="noopener noreferrer" className="line-clamp-2 break-words text-accent underline underline-offset-2 hover:text-accent-hover">
+                      {l.label}<span className="sr-only"> (opens in a new tab)</span>
+                    </a>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </>
         )}
       </div>
     </div>

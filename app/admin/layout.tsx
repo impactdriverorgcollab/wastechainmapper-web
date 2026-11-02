@@ -29,9 +29,9 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
   }, [signedOut, isLogin, pathname, router]);
 
   useEffect(() => {
-    if (wrongArea && !isLogin) router.replace('/field');
+    if (wrongArea && !isLogin) router.replace(role === 'REPORTER' ? '/account' : '/field');
     if (isPartner && !isLogin && !partnerAllowed) router.replace('/admin/exports');
-  }, [wrongArea, isPartner, partnerAllowed, isLogin, router]);
+  }, [wrongArea, role, isPartner, partnerAllowed, isLogin, router]);
 
   if (isLogin) return <>{children}</>;
 
@@ -54,6 +54,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
     { href: '/admin/sites', label: 'Sites' },
     { href: '/admin/collection-points', label: 'Collection points' },
     { href: '/admin/lgas', label: 'Local governments' },
+    { href: '/admin/profiles', label: 'Public profiles' },
     { href: '/admin/exports', label: 'Exports' },
     // Only administrators can manage people, sources and keys. The API refuses everyone else.
     ...(session.user?.role === 'ADMIN'

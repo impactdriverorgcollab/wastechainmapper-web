@@ -16,6 +16,7 @@ import { Badge, TierLabel } from '@/components/ui/Badge';
 import { EstimateRow } from '@/components/ui/Provenance';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { ErrorState } from '@/components/ui/States';
+import { PinReview } from './PinReview';
 
 function Card({ title, children, id }: { title: string; children: React.ReactNode; id: string }) {
   return (
@@ -66,6 +67,7 @@ export function SiteRecord({ id }: { id: string }) {
     );
   }
 
+  const reviewer = session.user?.role === 'ADMIN' || session.user?.role === 'FIELD_VERIFIER';
   const tier = TIER_INFO[site.confidenceTier];
   const latest = site.history.observations[0];
   const prov = latest?.provenance ?? {};
@@ -103,6 +105,10 @@ export function SiteRecord({ id }: { id: string }) {
           <Link href="/report" className="inline-flex min-h-11 items-center font-semibold text-accent hover:text-accent-hover">Report an update</Link>
         </p>
       </div>
+
+      {reviewer && site.confidenceTier === 'LOW' && site.status === 'UNVERIFIED' && (
+        <PinReview site={site} token={session.token!} onChanged={() => mutate()} />
+      )}
 
       <div className="grid gap-4 lg:grid-cols-3">
         <div className="space-y-4 lg:col-span-2">

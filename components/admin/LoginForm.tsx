@@ -21,7 +21,7 @@ export function LoginForm() {
   // start in the field app, everyone else in the review queue.
   const next = params.get('next');
   const safeNext = next && (next.startsWith('/admin') || next.startsWith('/field')) && !next.startsWith('//') ? next : null;
-  const homeFor = (role?: string) => (role === 'AMBASSADOR' ? '/field' : role === 'PARTNER' ? '/admin/exports' : '/admin');
+  const homeFor = (role?: string) => (role === 'AMBASSADOR' ? '/field' : role === 'REPORTER' ? '/account' : role === 'PARTNER' ? '/admin/exports' : '/admin');
 
   // Someone who is already signed in has no use for this page.
   const session = useSession();
