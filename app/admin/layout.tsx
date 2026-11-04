@@ -1,11 +1,9 @@
 'use client';
 
-import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, type ReactNode } from 'react';
-import { LogOut } from 'lucide-react';
 import { useSession, useSignOut } from '@/lib/auth';
-import { SiteHeader, type NavItem } from '@/components/layout/SiteHeader';
+import { AdminShell, type NavGroup } from '@/components/admin/AdminShell';
 import { Skeleton } from '@/components/ui/Skeleton';
 
 export default function AdminLayout({ children }: { children: ReactNode }) {
@@ -44,41 +42,21 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
     );
   }
 
-  const partnerLinks: NavItem[] = [
-    { href: '/admin/exports', label: 'Exports' },
-    { href: '/admin/collection-points', label: 'Collection points' },
-  ];
-  const staffLinks: NavItem[] = [
-    { href: '/admin/overview', label: 'Overview' },
-    { href: '/admin/queue', label: 'Review queue' },
-    { href: '/admin/sites', label: 'Sites' },
-    { href: '/admin/collection-points', label: 'Collection points' },
-    { href: '/admin/lgas', label: 'Local governments' },
-    { href: '/admin/profiles', label: 'Public profiles' },
-    { href: '/admin/exports', label: 'Exports' },
-    // Only administrators can manage people, sources and keys. The API refuses everyone else.
-    ...(session.user?.role === 'ADMIN'
-      ? [
-          { href: '/admin/sources', label: 'Sources' },
-          { href: '/admin/users', label: 'People' },
-          { href: '/admin/import', label: 'Import data' },
-          { href: '/admin/api-keys', label: 'API keys' },
-          { href: '/admin/audit', label: 'Audit log' },
-        ]
-      : []),
-  ];
-  const links = isPartner ? partnerLinks : staffLinks;
+  const isAdmin = role === 'ADMIN';
+  // Grouped so the list reads as a few short sections. Only administrators manage people, sources and
+  // keys, and the API refuses everyone else.
+  const groups: NavGroup[] = isPartner
+    ? [{ label: 'Partner', links: [{ href: '/admin/exports', label: 'Exports' }, { href: '/admin/collection-points', label: 'Collection points' }] }]
+    : [
+        { label: 'Review', links: [{ href: '/admin/overview', label: 'Overview' }, { href: '/admin/queue', label: 'Review queue' }, { href: '/admin/profiles', label: 'Public profiles' }] },
+        { label: 'Places', links: [{ href: '/admin/sites', label: 'Sites' }, { href: '/admin/collection-points', label: 'Collection points' }, { href: '/admin/lgas', label: 'Local governments' }] },
+        { label: 'Data', links: [{ href: '/admin/exports', label: 'Exports' }, ...(isAdmin ? [{ href: '/admin/import', label: 'Import data' }, { href: '/admin/sources', label: 'Sources' }] : [])] },
+        ...(isAdmin ? [{ label: 'Administration', links: [{ href: '/admin/users', label: 'People' }, { href: '/admin/api-keys', label: 'API keys' }, { href: '/admin/audit', label: 'Audit log' }] }] : []),
+      ];
 
   return (
-    <>
-      <SiteHeader links={links} section={isPartner ? 'Partner' : 'Admin'}>
-        <Link href="/map" className="btn-ghost">Public site</Link>
-        <button type="button" onClick={signOut} className="btn-ghost">
-          <LogOut size={16} aria-hidden="true" />
-          Sign out
-        </button>
-      </SiteHeader>
-      <main id="main" className="mx-auto w-full max-w-7xl px-4 py-6 sm:px-6 sm:py-8">{children}</main>
-    </>
+    <AdminShell groups={groups} section={isPartner ? 'Partner' : 'Admin'} person={session.user?.displayName || session.user?.email} onSignOut={signOut}>
+      {children}
+    </AdminShell>
   );
 }

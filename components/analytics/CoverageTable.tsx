@@ -1,4 +1,4 @@
-import { formatDate } from '@/lib/format';
+import { formatDate, formatNumber } from '@/lib/format';
 import type { CoverageRow } from '@/lib/types';
 import { Badge } from '@/components/ui/Badge';
 
@@ -11,11 +11,14 @@ const STATUS: Record<CoverageRow['status'], { label: string; tone: 'danger' | 'w
 /** Where the platform knows something and where it knows very little. Absence of sites is not absence of waste. */
 export function CoverageTable({ rows, unplaced }: { rows: CoverageRow[]; unplaced?: number }) {
   const gaps = rows.filter((r) => r.status !== 'covered').length;
+  // Population columns appear once an administrator has loaded population figures.
+  const people = rows.some((r) => r.population != null);
   return (
     <div className="space-y-3">
       <p className="text-sm text-fg-muted">
         {gaps === 0 ? 'Every local government area has recent checked records.' : `${gaps} of ${rows.length} areas have little or no checked data.`}{' '}
         An area with no sites is an area with no data, not an area with no waste.
+        {people && ' Sites per 100,000 people shows where reporting is dense, not where waste is.'}
         {unplaced ? ` ${unplaced} reports waiting for review could not be placed in any area yet.` : ''}
       </p>
       <div className="table-wrap" tabIndex={0}>
@@ -30,6 +33,8 @@ export function CoverageTable({ rows, unplaced }: { rows: CoverageRow[]; unplace
               <th scope="col" className="num">Field-verified</th>
               <th scope="col" className="num">Collection points</th>
               <th scope="col" className="num">Waiting for review</th>
+              {people && <th scope="col" className="num">People</th>}
+              {people && <th scope="col" className="num">Sites per 100,000 people</th>}
               <th scope="col">Last record</th>
             </tr>
           </thead>
@@ -43,6 +48,8 @@ export function CoverageTable({ rows, unplaced }: { rows: CoverageRow[]; unplace
                 <td className="num">{r.fieldVerifiedSites}</td>
                 <td className="num">{r.collectionPoints}{r.officialCollectionPoints ? ` (${r.officialCollectionPoints} official)` : ''}</td>
                 <td className="num">{r.awaitingReview}</td>
+                {people && <td className="num">{r.population != null ? formatNumber(r.population) : 'Not loaded'}</td>}
+                {people && <td className="num">{r.sitesPer100k ?? 'Not loaded'}</td>}
                 <td>{r.lastRecordAt ? formatDate(r.lastRecordAt) : 'None'}</td>
               </tr>
             ))}

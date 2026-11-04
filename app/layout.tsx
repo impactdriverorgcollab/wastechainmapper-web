@@ -4,13 +4,13 @@ import { ThemeProvider, THEME_SCRIPT } from '@/lib/theme';
 import { TableLabels } from '@/components/ui/TableLabels';
 import './globals.css';
 
-// One family for the interface, a monospace for coordinates and keys. Two weights only.
+// IBM Plex Sans for the interface and Plex Mono for figures and coordinates: one family, two cuts. Two weights.
 // The files are kept in the project (app/fonts, SIL Open Font License). Fetching them from Google when
 // the site compiles failed silently on a bad connection and left the whole site in a fallback font.
 const sans = localFont({
   src: [
-    { path: './fonts/public-sans-latin-400-normal.woff2', weight: '400', style: 'normal' },
-    { path: './fonts/public-sans-latin-600-normal.woff2', weight: '600', style: 'normal' },
+    { path: './fonts/ibm-plex-sans-latin-400-normal.woff2', weight: '400', style: 'normal' },
+    { path: './fonts/ibm-plex-sans-latin-600-normal.woff2', weight: '600', style: 'normal' },
   ],
   variable: '--font-sans',
   display: 'swap',
@@ -32,8 +32,8 @@ export const viewport: Viewport = {
   width: 'device-width',
   initialScale: 1,
   themeColor: [
-    { media: '(prefers-color-scheme: light)', color: '#EDF1EA' },
-    { media: '(prefers-color-scheme: dark)', color: '#0B1210' },
+    { media: '(prefers-color-scheme: light)', color: '#FFFFFF' },
+    { media: '(prefers-color-scheme: dark)', color: '#141817' },
   ],
 };
 

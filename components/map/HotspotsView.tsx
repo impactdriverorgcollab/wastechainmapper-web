@@ -5,11 +5,12 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import useSWR from 'swr';
 import maplibregl from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
-import { Crosshair, MapPin } from 'lucide-react';
+import { Crosshair, Map as MapIcon, MapPin, Satellite } from 'lucide-react';
 import { getAllWasteSites, getHotspots } from '@/lib/api';
 import { RIVERS_STATE_CENTER, RIVERS_STATE_ZOOM } from '@/lib/constants';
 import { formatDate, plural } from '@/lib/format';
-import { mapStyleFor } from '@/lib/mapStyle';
+import { mapStyleFor, type Basemap } from '@/lib/mapStyle';
+import { WatchList } from './WatchList';
 import { useTheme } from '@/lib/theme';
 import type { Hotspot } from '@/lib/types';
 import { Badge } from '@/components/ui/Badge';
@@ -38,7 +39,7 @@ function HotspotCard({ h }: { h: Hotspot }) {
   const { colors } = useTheme();
   const sev = severityOf(h.score);
   return (
-    <li className="flex flex-col rounded-lg bg-panel p-4">
+    <li className="flex flex-col border-t-2 border-line pt-4">
       <div className="flex items-start justify-between gap-3">
         <p className="flex items-center gap-2 text-base font-semibold text-fg">
           <MapPin size={16} aria-hidden="true" className="shrink-0" style={{ color: colors.severity[sev] }} />
@@ -71,13 +72,14 @@ export function HotspotsView() {
   const [me, setMe] = useState<{ lat: number; lng: number } | null>(null);
   const [geoMessage, setGeoMessage] = useState<string | null>(null);
   const [locating, setLocating] = useState(false);
+  const [basemap, setBasemap] = useState<Basemap>('streets');
 
   const hotspots = useSWR('hotspots-page', () => getHotspots({ minSites: 2 }), SWR);
   const sites = useSWR('hotspots-page-sites', () => getAllWasteSites({}), SWR);
 
   useEffect(() => {
     if (!containerRef.current || mapRef.current) return;
-    appliedTheme.current = theme;
+    appliedTheme.current = `${theme}:streets`;
     const map = new maplibregl.Map({
       container: containerRef.current, style: mapStyleFor(theme, 'streets'), center: RIVERS_STATE_CENTER, zoom: RIVERS_STATE_ZOOM - 0.5, attributionControl: false,
     });
@@ -97,11 +99,12 @@ export function HotspotsView() {
 
   const appliedTheme = useRef('');
   useEffect(() => {
-    if (!mapRef.current || appliedTheme.current === theme) return;
-    appliedTheme.current = theme;
+    const key = `${theme}:${basemap}`;
+    if (!mapRef.current || appliedTheme.current === key) return;
+    appliedTheme.current = key;
     // diff: false forces a full reload, so "style.load" fires and our layers are added back.
-    mapRef.current.setStyle(mapStyleFor(theme, 'streets'), { diff: false });
-  }, [theme]);
+    mapRef.current.setStyle(mapStyleFor(theme, basemap), { diff: false });
+  }, [theme, basemap]);
 
   useEffect(() => {
     const map = mapRef.current;
@@ -141,7 +144,17 @@ export function HotspotsView() {
       <div className="relative h-96 overflow-hidden rounded-lg bg-panel shadow-raised sm:h-[32rem]">
         <div ref={containerRef} role="region" aria-label="Map of hotspots. Larger, darker zones have more sites." className="h-full w-full" />
         <div className="pointer-events-none absolute left-3 top-3 z-10 flex flex-col items-start gap-2">
-          <Button onClick={locate} loading={locating} className="pointer-events-auto shadow-raised"><Crosshair size={16} aria-hidden="true" />Find my zone</Button>
+          <div className="pointer-events-auto flex gap-2">
+            <Button onClick={locate} loading={locating} className="shadow-raised"><Crosshair size={16} aria-hidden="true" />Find my zone</Button>
+            <Button
+              onClick={() => setBasemap((b) => (b === 'streets' ? 'satellite' : 'streets'))}
+              aria-pressed={basemap === 'satellite'}
+              className={`shadow-raised ${basemap === 'satellite' ? '!border-accent !bg-accent !text-accent-fg' : ''}`}
+            >
+              {basemap === 'satellite' ? <MapIcon size={16} aria-hidden="true" /> : <Satellite size={16} aria-hidden="true" />}
+              {basemap === 'satellite' ? 'Street map' : 'Satellite'}
+            </Button>
+          </div>
           {geoMessage && <p role="status" className="pointer-events-auto max-w-xs rounded-lg bg-warning-soft px-3 py-2 text-sm text-warning shadow-raised">{geoMessage}</p>}
         </div>
         <div className="pointer-events-none absolute bottom-8 right-3 z-10 hidden sm:block"><div className="pointer-events-auto"><SeverityLegend /></div></div>
@@ -166,7 +179,7 @@ export function HotspotsView() {
         {hotspots.error ? <ErrorState message={hotspots.error.message} onRetry={() => hotspots.mutate()} /> : !hotspots.data ? (
           <div role="status" aria-label="Loading hotspots" className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">{[0, 1, 2].map((i) => <Skeleton key={i} className="h-40" />)}</div>
         ) : (
-          <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          <ul className="grid gap-x-8 gap-y-8 sm:grid-cols-2 lg:grid-cols-3">
             {zone && (
               <li className="rounded-lg bg-accent-soft p-4">
                 <p className="flex items-center gap-2 text-base font-semibold text-fg"><Crosshair size={16} aria-hidden="true" className="text-accent" />Your location zone</p>
@@ -187,6 +200,8 @@ export function HotspotsView() {
           </EmptyState>
         )}
       </section>
+
+      <WatchList />
     </div>
   );
 }

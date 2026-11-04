@@ -15,11 +15,16 @@ import dynamic from 'next/dynamic';
 import type { PickedLocation } from './LocationPicker';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { PhotoPicker, type PickedPhoto } from './PhotoPicker';
+import { VideoPicker } from './VideoPicker';
 
 // The map is the heaviest part of the page, so it loads after the form is on screen.
 const LocationPicker = dynamic(() => import('./LocationPicker').then((m) => m.LocationPicker), {
   ssr: false,
   loading: () => <Skeleton className="h-64 w-full" />,
+});
+const FootprintPicker = dynamic(() => import('./FootprintPicker').then((m) => m.FootprintPicker), {
+  ssr: false,
+  loading: () => <Skeleton className="h-72 w-full" />,
 });
 
 export type FormVariant = 'public' | 'field';
@@ -29,7 +34,7 @@ export interface FormPhoto { dataUrl: string; capturedAt: string }
 interface Props {
   variant: FormVariant;
   /** Runs when the form is valid. Throw an Error with a plain message to show it above the button. */
-  onSubmit: (input: SubmissionInput, photos: FormPhoto[]) => Promise<void>;
+  onSubmit: (input: SubmissionInput, photos: FormPhoto[], video?: File | null) => Promise<void>;
   submitLabel: string;
   /** Field app: start from a known site, so the record updates it. */
   initialSite?: { id: string; name: string; latitude: number; longitude: number } | null;
@@ -60,7 +65,7 @@ function Check({ id, checked, onChange, children }: { id: string; checked: boole
 
 function Section({ title, hint, children, target }: { title: string; hint?: string; children: ReactNode; target?: string }) {
   return (
-    <fieldset className="space-y-3 rounded-lg bg-panel p-4 sm:p-5" data-target={target} tabIndex={target ? -1 : undefined}>
+    <fieldset className="space-y-3 border-t border-line pt-6" data-target={target} tabIndex={target ? -1 : undefined}>
       <legend className="sr-only">{title}</legend>
       <div>
         <h2 className="text-lg font-semibold text-fg" aria-hidden="true">{title}</h2>
@@ -90,6 +95,9 @@ export function ObservationForm({ variant, onSubmit, submitLabel, initialSite, f
   const [height, setHeight] = useState('');
   const [shape, setShape] = useState<PileShape>('HEAP');
   const [sizeKey, setSizeKey] = useState('');
+  const [drawing, setDrawing] = useState(false);
+  const [footprint, setFootprint] = useState<number | null>(null);
+  const [video, setVideo] = useState<File | null>(null);
   const [volumeBasis, setVolumeBasis] = useState<EstimateBasis>('FIELD_ESTIMATE');
 
   const [composition, setComposition] = useState<Record<string, string>>({});
@@ -128,9 +136,12 @@ export function ObservationForm({ variant, onSubmit, submitLabel, initialSite, f
 
   // ── Live figures ──
   const dims = { l: num(length), w: num(width), h: num(height) };
-  const volume = dims.l && dims.w && dims.h && [dims.l, dims.w, dims.h].every(Number.isFinite)
-    ? volumeFromDimensions(dims.l, dims.w, dims.h, shape)
-    : null;
+  // A drawn footprint wins over length and width, the same as on the server.
+  const volume = footprint && dims.h && Number.isFinite(dims.h)
+    ? Math.round(footprint * dims.h * (shape === 'BOX' ? 1 : 0.5) * 100) / 100
+    : dims.l && dims.w && dims.h && [dims.l, dims.w, dims.h].every(Number.isFinite)
+      ? volumeFromDimensions(dims.l, dims.w, dims.h, shape)
+      : null;
   const compNumbers = useMemo(() => {
     const out: Record<string, number> = {};
     for (const [k, v] of Object.entries(composition)) if (v.trim() !== '' && Number.isFinite(Number(v)) && Number(v) > 0) out[k] = Number(v);
@@ -215,6 +226,7 @@ export function ObservationForm({ variant, onSubmit, submitLabel, initialSite, f
       ...(conditions.trim() && { conditionsNote: conditions.trim() }),
       ...(sizeKey && { extentNote: SIZE_GUIDE.find((s) => s.key === sizeKey)?.label }),
       ...(dims.l && dims.w && dims.h && { lengthM: dims.l, widthM: dims.w, heightM: dims.h, shape, ...(field && { volumeBasis }) }),
+      ...(footprint && dims.h && { footprintM2: footprint, heightM: dims.h, shape, ...(field && { volumeBasis }) }),
       blockedDrain,
       entersWaterway,
       overflowingPoint: overflowing,
@@ -238,7 +250,7 @@ export function ObservationForm({ variant, onSubmit, submitLabel, initialSite, f
 
     setBusy(true);
     try {
-      await onSubmit(input, photos.map((p) => ({ dataUrl: p.dataUrl, capturedAt: p.capturedAt })));
+      await onSubmit(input, photos.map((p) => ({ dataUrl: p.dataUrl, capturedAt: p.capturedAt })), video);
     } catch (e) {
       setFormError(e instanceof Error ? e.message : 'Your report was not sent. Check your connection and try again.');
     } finally {
@@ -249,7 +261,7 @@ export function ObservationForm({ variant, onSubmit, submitLabel, initialSite, f
   const err = (k: string) => errors[k];
 
   return (
-    <form onSubmit={handleSubmit} noValidate className="space-y-4">
+    <form onSubmit={handleSubmit} noValidate className="space-y-8">
       {formError && (
         <p ref={formErrorRef} tabIndex={-1} role="alert" className="rounded bg-danger-soft px-3 py-3 text-sm text-danger">{formError}</p>
       )}
@@ -279,6 +291,7 @@ export function ObservationForm({ variant, onSubmit, submitLabel, initialSite, f
 
       <Section title="Photos" hint={field ? 'Photograph the waste from the same spot each time, so changes can be compared.' : 'A clear photo helps a lot. Do not photograph people or number plates.'}>
         <PhotoPicker photos={photos} onChange={setPhotos} max={field ? 6 : 4} />
+        {!field && <VideoPicker video={video} onChange={setVideo} />}
       </Section>
 
       <Section title="Where is it?" target="location">
@@ -366,6 +379,26 @@ export function ObservationForm({ variant, onSubmit, submitLabel, initialSite, f
             <TextField label="Width (m)" optional inputMode="decimal" value={width} onChange={(e) => { setWidth(e.target.value); setSizeKey(''); }} error={err('width')} />
             <TextField label="Height (m)" optional inputMode="decimal" value={height} onChange={(e) => { setHeight(e.target.value); setSizeKey(''); }} error={err('height')} />
           </div>
+        )}
+
+        {location ? (
+          <div className="space-y-3">
+            {!drawing ? (
+              <Button onClick={() => setDrawing(true)}>Draw the outline on a satellite map</Button>
+            ) : (
+              <>
+                <FootprintPicker centre={location} onChange={setFootprint} />
+                {!(field || sizeKey) && (
+                  <div className="max-w-xs">
+                    <TextField label="Average height (m)" inputMode="decimal" value={height} onChange={(e) => setHeight(e.target.value)} error={err('height')} hint="Needed with the outline to work out a volume." />
+                  </div>
+                )}
+                <Button variant="ghost" onClick={() => { setDrawing(false); setFootprint(null); }}>Stop drawing</Button>
+              </>
+            )}
+          </div>
+        ) : (
+          <p className="text-sm text-fg-muted">For a large or spread-out pile, choose the place first. You can then draw its outline on a satellite map.</p>
         )}
 
         {field && (

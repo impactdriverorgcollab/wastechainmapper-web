@@ -6,8 +6,9 @@ import { themes, triplet, type Theme } from './lib/palette';
 //
 //   Colour       two themes, written as CSS variables (see lib/palette.ts). The html element carries
 //                the class "dark" for the dark theme.
-//   Type scale   six sizes: xs 12, sm 14, base 16, lg 20, xl 24, 2xl 32
-//   Radius       DEFAULT 6px for controls, lg 12px for panels and dialogs
+//   Type scale   xs 12, sm 14, base 16, lg 20, xl 24, 2xl 32, and 3xl 44 for the home page headline only
+//   Type         IBM Plex Sans for the interface, IBM Plex Mono for figures, coordinates and references
+//   Radius       DEFAULT 4px for controls, lg 6px for panels and dialogs
 //   Shadow       raised (menus, map panels) and overlay (dialogs). Flat surfaces have none.
 //   Spacing      Tailwind's 4px scale
 const NAMES: [keyof Theme, string][] = [
@@ -33,13 +34,14 @@ const config: Config = {
       base: ['1rem', { lineHeight: '1.5rem' }],
       lg: ['1.25rem', { lineHeight: '1.75rem' }],
       xl: ['1.5rem', { lineHeight: '1.875rem' }],
-      '2xl': ['2rem', { lineHeight: '2.25rem' }],
+      '2xl': ['2rem', { lineHeight: '2.375rem', letterSpacing: '-0.015em' }],
+      '3xl': ['2.75rem', { lineHeight: '3rem', letterSpacing: '-0.025em' }],
     },
-    borderRadius: { none: '0', DEFAULT: '0.375rem', lg: '0.75rem', full: '9999px' },
+    borderRadius: { none: '0', DEFAULT: '0.25rem', lg: '0.375rem', full: '9999px' },
     boxShadow: {
       none: 'none',
-      raised: '0 2px 10px rgb(var(--c-shadow) / 0.16)',
-      overlay: '0 10px 30px rgb(var(--c-shadow) / 0.28)',
+      raised: '0 1px 2px rgb(var(--c-shadow) / 0.10), 0 4px 12px rgb(var(--c-shadow) / 0.08)',
+      overlay: '0 12px 32px rgb(var(--c-shadow) / 0.24)',
     },
     extend: {
       // For panels that only fit on a screen of some height, which rules out a phone held sideways.

@@ -25,7 +25,19 @@ export type LayerId =
   | 'waterways'
   | 'drains'
   | 'schools'
-  | 'health';
+  | 'health'
+  | 'data-gaps'
+  // Where the waste is. These switch groups of sites on and off rather than drawing anything themselves.
+  | 'setting-land'
+  | 'setting-drain'
+  | 'setting-waterway'
+  | 'setting-coastal'
+  | 'setting-disposal'
+  | 'sewage';
+
+export const SETTING_LAYERS = {
+  LAND: 'setting-land', DRAIN: 'setting-drain', WATERWAY: 'setting-waterway', COASTAL: 'setting-coastal', DISPOSAL_FACILITY: 'setting-disposal',
+} as const;
 
 /** Which map layers each switch in the panel controls. */
 export const LAYER_MAP: Record<LayerId, string[]> = {
@@ -45,6 +57,8 @@ export const LAYER_MAP: Record<LayerId, string[]> = {
   drains: ['ref-drains-line'],
   schools: ['ref-schools-circle'],
   health: ['ref-health-circle'],
+  'data-gaps': ['gaps-fill', 'gaps-line'],
+  'setting-land': [], 'setting-drain': [], 'setting-waterway': [], 'setting-coastal': [], 'setting-disposal': [], sewage: [],
 };
 
 export const DEFAULT_ENABLED: Record<LayerId, boolean> = {
@@ -64,6 +78,8 @@ export const DEFAULT_ENABLED: Record<LayerId, boolean> = {
   drains: false,
   schools: false,
   health: false,
+  'data-gaps': false,
+  'setting-land': true, 'setting-drain': true, 'setting-waterway': true, 'setting-coastal': true, 'setting-disposal': true, sewage: true,
 };
 
 /** A short description of the thing a user clicked, for the details card. */
@@ -73,6 +89,8 @@ export interface PlaceInfo {
   rows: [label: string, value: string][];
   /** Links shown under the rows, such as the stories behind an area count. */
   links?: { label: string; href: string }[];
+  /** One plain sentence under the rows, to stop the figures being misread. */
+  note?: string;
 }
 
 // ── Hotspot severity ──────────────────────────────────────────────────────────
@@ -356,11 +374,19 @@ export function addAllLayers(map: maplibregl.Map, c: Theme) {
   };
   const layer = (spec: maplibregl.LayerSpecification) => { if (!map.getLayer(spec.id)) map.addLayer(spec); };
 
-  for (const id of ['lga', 'area-mentions', 'flood-zones', 'ref-waterways', 'ref-drains', 'ref-schools', 'ref-health', 'area-check', 'nearest-lines',
+  for (const id of ['data-gaps', 'lga', 'area-mentions', 'flood-zones', 'ref-waterways', 'ref-drains', 'ref-schools', 'ref-health', 'area-check', 'nearest-lines',
     'waste-routes', 'heatmap-data', 'hotspots', 'collection-points', 'facilities', 'water-sources', 'water-anomalies', 'draw', 'search-pin']) {
     source(id);
   }
   source('dump-sites', { cluster: true, clusterMaxZoom: 13, clusterRadius: 40 });
+
+  // How much checked data each area has. Grey is nothing recorded, yellow is thin, and well-covered areas are left clear.
+  layer({ id: 'gaps-fill', type: 'fill', source: 'data-gaps',
+    paint: {
+      'fill-color': ['match', ['get', 'status'], 'no_data', c.lineStrong, 'thin', c.severity[1], c.panel],
+      'fill-opacity': ['match', ['get', 'status'], 'no_data', 0.32, 'thin', 0.28, 0],
+    } });
+  layer({ id: 'gaps-line', type: 'line', source: 'data-gaps', paint: { 'line-color': c.lineStrong, 'line-width': 1, 'line-opacity': 0.8 } });
 
   // Local government area outlines
   layer({ id: 'lga-fill', type: 'fill', source: 'lga', paint: { 'fill-color': c.accent, 'fill-opacity': 0.05 } });
@@ -489,6 +515,20 @@ const rows = (...pairs: [string, string | null][]): [string, string][] =>
 
 export function placeFromFeature(layerId: string, p: Props): PlaceInfo | null {
   switch (layerId) {
+    case 'gaps-fill': {
+      const status = str(p.status);
+      return {
+        title: str(p.name) ?? 'Area',
+        subtitle: status === 'no_data' ? 'No checked data yet' : status === 'thin' ? 'Thin data' : 'Covered',
+        rows: rows(
+          ['Sites', p.sites != null ? String(p.sites) : null],
+          ['Checked by a reviewer', p.checkedSites != null ? String(p.checkedSites) : null],
+          ['Collection points', p.collectionPoints != null ? String(p.collectionPoints) : null],
+          ['Waiting for review', p.awaitingReview != null ? String(p.awaitingReview) : null],
+        ),
+        note: 'An area with no sites is an area with no data, not an area with no waste.',
+      };
+    }
     case 'area-fill': {
       const stories = Number(p.stories);
       let recent: { title: string; url: string }[] = [];
@@ -579,5 +619,5 @@ export function placeFromFeature(layerId: string, p: Props): PlaceInfo | null {
 
 /** Layers a click can select, topmost first. */
 export const CLICKABLE_LAYERS = [
-  'sites-pin', 'water-anomalies-circle', 'facilities-circle', 'cp-circle', 'water-sources-circle', 'hotspots-fill', 'flood-zones-fill', 'area-fill',
+  'sites-pin', 'water-anomalies-circle', 'facilities-circle', 'cp-circle', 'water-sources-circle', 'hotspots-fill', 'flood-zones-fill', 'area-fill', 'gaps-fill',
 ];

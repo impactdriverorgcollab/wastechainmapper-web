@@ -90,7 +90,7 @@ async function forward(req: NextRequest, { params }: { params: { path: string[] 
   if (tooMany(ip)) return json(429, 'Too many requests. Wait a minute and try again.', { 'Retry-After': '60' });
 
   const authorization = req.headers.get('authorization');
-  const isSignIn = ['auth/login', 'auth/register', 'auth/forgot-password', 'auth/reset-password', 'auth/confirm-email'].includes(path);
+  const isSignIn = ['auth/login', 'auth/register', 'auth/forgot-password', 'auth/reset-password', 'auth/confirm-email', 'alerts/subscribe', 'alerts/confirm', 'alerts/unsubscribe'].includes(path);
 
   // Public data needs the website key. Staff requests and sign-in do not.
   if (!WEB_API_KEY && !authorization && !isSignIn) {

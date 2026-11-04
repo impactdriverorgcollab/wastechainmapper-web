@@ -53,6 +53,17 @@ const GROUPS: Group[] = [
     ],
   },
   {
+    title: 'Where the waste is',
+    layers: [
+      { id: 'setting-land', label: 'On land', color: (c) => c.fgMuted, shape: 'pin', note: 'Each switch shows or hides the sites of one kind. A site sits in one kind only, from what the reporter chose.' },
+      { id: 'setting-drain', label: 'In drains', color: (c) => c.drain, shape: 'pin' },
+      { id: 'setting-waterway', label: 'In rivers, creeks and canals', color: (c) => c.waterway, shape: 'pin' },
+      { id: 'setting-coastal', label: 'On the coast or shore', color: (c) => c.waterSource, shape: 'pin' },
+      { id: 'setting-disposal', label: 'At a disposal facility', color: () => FACILITY_TYPE_COLORS.LANDFILL, shape: 'pin' },
+      { id: 'sewage', label: 'Sewage-related', color: (c) => c.severity[2], shape: 'pin', note: 'Sites recorded as human waste or sewage, wherever they are.' },
+    ],
+  },
+  {
     title: 'Waste handling',
     layers: [
       { id: 'collection-points', label: 'Collection points', color: (c) => c.collectionPoint, shape: 'dot' },
@@ -87,14 +98,25 @@ const GROUPS: Group[] = [
         legend: () => (Object.keys(WATER_ANOMALY_COLORS) as (keyof typeof WATER_ANOMALY_COLORS)[]).map((t) => ({ color: WATER_ANOMALY_COLORS[t], label: WATER_ANOMALY_LABELS[t], shape: 'dot' as const })),
       },
       {
-        id: 'flood-zones', label: 'Flood-risk zones', color: () => FLOOD_RISK_COLORS.MEDIUM, shape: 'area',
+        id: 'flood-zones', label: 'Flood zones', color: () => FLOOD_RISK_COLORS.MEDIUM, shape: 'area',
+        note: 'Includes where satellites saw floodwater in October 2022 (UNOSAT). That shows where it flooded then, not a forecast.',
         legend: () => (['HIGH', 'MEDIUM', 'LOW'] as const).map((r) => ({ color: FLOOD_RISK_COLORS[r], label: FLOOD_RISK_LABELS[r], shape: 'area' as const })),
       },
     ],
   },
   {
     title: 'Boundaries',
-    layers: [{ id: 'lga', label: 'Local government areas', color: (c) => c.lineStrong, shape: 'dash', note: 'The 23 areas of Rivers State, from OpenStreetMap.' }],
+    layers: [
+      { id: 'lga', label: 'Local government areas', color: (c) => c.lineStrong, shape: 'dash', note: 'The 23 areas of Rivers State, from OpenStreetMap.' },
+      {
+        id: 'data-gaps', label: 'Where data is thin', color: (c) => c.severity[1], shape: 'area',
+        note: 'Areas shaded by how much checked data they have. An area with no sites is an area with no data, not an area with no waste.',
+        legend: (c) => [
+          { color: c.lineStrong, label: 'No checked data', shape: 'area' as const },
+          { color: c.severity[1], label: 'Thin data', shape: 'area' as const },
+        ],
+      },
+    ],
   },
 ];
 

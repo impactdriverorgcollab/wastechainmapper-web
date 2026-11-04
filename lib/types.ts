@@ -124,7 +124,7 @@ export interface WasteFlow {
   destinationFacility?: { latitude: number | null; longitude: number | null; name: string; facilityType: FacilityType } | null;
 }
 
-export type ImportKind = 'dump-sites' | 'facilities' | 'waste-flows' | 'water-readings';
+export type ImportKind = 'dump-sites' | 'facilities' | 'waste-flows' | 'water-readings' | 'area-indicators';
 
 export interface ImportResult {
   kind: ImportKind;
@@ -340,9 +340,23 @@ export interface ObservationDetail {
   sourceType?: ReportSourceType;
 }
 
+export interface PhotoSuggestion {
+  category: WasteCategory;
+  confidence: 'low' | 'medium' | 'high';
+  mixed: boolean;
+  hazardous: boolean;
+  showsPeople: boolean;
+  note: string;
+  model: string;
+  at: string;
+}
+
 export interface EvidenceItem {
   id: string;
   reportId?: string;
+  kind?: 'photo' | 'video';
+  redactedAt?: string | null;
+  aiSuggestion?: PhotoSuggestion | null;
   mimeType?: string;
   publicApproved?: boolean;
   containsPeople?: boolean;
@@ -430,6 +444,8 @@ export interface Hotspot {
 
 export interface CoverageRow {
   lga: string;
+  population?: number | null;
+  sitesPer100k?: number | null;
   status: 'no_data' | 'thin' | 'covered';
   sites: number;
   checkedSites: number;
@@ -532,6 +548,45 @@ export interface SubmitResult {
   credited?: boolean;
 }
 
+// ── Watch list, area figures, references ─────────────────────────────────────
+
+export interface WatchEntry {
+  rank: number;
+  centre: { latitude: number; longitude: number };
+  lga: string | null;
+  communities: string[];
+  siteCount: number;
+  recentRecords: number;
+  earlierRecords: number;
+  score: number;
+  reasons: string[];
+}
+
+export interface AreaIndicator {
+  lga: string;
+  indicator: string;
+  period: string;
+  value: number;
+  unit: string | null;
+  source: string;
+  restricted: boolean;
+  notes: string | null;
+}
+
+export interface PublishedReference {
+  id: string;
+  kind: 'research' | 'notice';
+  title: string;
+  url: string;
+  authors: string | null;
+  publishedOn: string | null;
+  venue: string | null;
+  places: string[];
+  source: string;
+}
+
+export type AlertKind = 'sites' | 'watch' | 'drainage';
+
 // ── Contributors ──────────────────────────────────────────────────────────────
 
 export type ContributorKind = 'AMBASSADOR' | 'REPORTER';
@@ -613,6 +668,7 @@ export interface ProfileReviewRow {
 
 /** The body of a submission, shared by the public form and the field app. */
 export interface SubmissionInput {
+  footprintM2?: number;
   description?: string;
   latitude?: number;
   longitude?: number;

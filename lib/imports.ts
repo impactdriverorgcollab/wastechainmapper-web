@@ -13,6 +13,22 @@ const col = (name: string, required: boolean, help: string): ImportColumn => ({ 
 
 export const IMPORT_TEMPLATES: ImportTemplate[] = [
   {
+    kind: 'area-indicators',
+    title: 'Area figures',
+    summary: 'One figure for a whole local government area from another sector: population, a health count, a water-quality average. Only area totals, never a record about a person. A figure for the same area, indicator and period replaces the earlier one.',
+    columns: [
+      col('lga', true, 'One of the 23 Rivers State areas, for example Obio-Akpor.'),
+      col('indicator', true, 'A short name, for example population, cholera_cases or water_ecoli_mean. Use population for the census figure, which the coverage table divides by.'),
+      col('value', true, 'The number.'),
+      col('period', false, 'The year or month it covers, for example 2022 or 2026-09.'),
+      col('unit', false, 'For example people, cases or CFU per 100 ml.'),
+      col('source', true, 'Who published it, for example "UNFPA and US Census Bureau, COD-PS 2022".'),
+      col('restricted', false, 'yes if only partners and staff may see it, for example health figures shared on that condition. No by default.'),
+      col('notes', false, 'Anything a reader should know.'),
+    ],
+    example: ['Obio-Akpor', 'population', '1036650', '2022', 'people', 'UNFPA and US Census Bureau, COD-PS 2022', 'no', ''],
+  },
+  {
     kind: 'dump-sites',
     title: 'Dump sites',
     summary: 'Known dump sites from field visits, community leaders or agency lists. Only the community name is needed: we find its position from our list of places. A site within 150 metres of one already on the map is skipped.',

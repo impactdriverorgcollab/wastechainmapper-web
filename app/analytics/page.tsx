@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import { PageHeader, PageShell } from '@/components/layout/PageShell';
 import { AnalyticsView } from '@/components/analytics/AnalyticsView';
 import { InsightsView } from '@/components/analytics/InsightsView';
+import { AreaFigures, ReadingList } from '@/components/analytics/AreaFigures';
 
 export const metadata: Metadata = { title: 'Analytics' };
 
@@ -18,6 +19,8 @@ export default function AnalyticsPage() {
           <h2 id="in-flows" className="mb-4 text-lg font-semibold text-fg">Waste handling</h2>
           <AnalyticsView />
         </section>
+        <AreaFigures />
+        <ReadingList />
       </div>
     </PageShell>
   );

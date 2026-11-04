@@ -17,10 +17,11 @@ import { EstimateRow } from '@/components/ui/Provenance';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { ErrorState } from '@/components/ui/States';
 import { PinReview } from './PinReview';
+import { VideoClip } from '@/components/ui/VideoClip';
 
 function Card({ title, children, id }: { title: string; children: React.ReactNode; id: string }) {
   return (
-    <section aria-labelledby={id} className="rounded-lg bg-panel p-4 sm:p-5">
+    <section aria-labelledby={id} className="border-t border-line pt-5">
       <h2 id={id} className="text-lg font-semibold text-fg">{title}</h2>
       <div className="mt-3">{children}</div>
     </section>
@@ -110,14 +111,19 @@ export function SiteRecord({ id }: { id: string }) {
         <PinReview site={site} token={session.token!} onChanged={() => mutate()} />
       )}
 
-      <div className="grid gap-4 lg:grid-cols-3">
-        <div className="space-y-4 lg:col-span-2">
-          <Card title="Photos" id="photos">
+      <div className="grid gap-8 lg:grid-cols-3">
+        <div className="space-y-8 lg:col-span-2">
+          <Card title="Photos and video" id="photos">
             {site.evidence.length === 0 ? (
               <p className="text-sm text-fg-muted">No photos have been approved for public viewing yet. Photos are checked by a reviewer first, to protect the people in them.</p>
             ) : (
               <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-                {site.evidence.map((e) => (
+                {site.evidence.map((e) => e.kind === 'video' ? (
+                  <li key={e.id} className="col-span-2 overflow-hidden rounded-lg bg-panel-2 sm:col-span-3">
+                    <VideoClip id={e.id} token={session.token} label={`Video of the waste at ${title}, taken ${formatDate(e.capturedAt ?? e.uploadedAt)}`} />
+                    <p className="px-2 py-1 text-xs text-fg-muted">{formatDate(e.capturedAt ?? e.uploadedAt)}</p>
+                  </li>
+                ) : (
                   <li key={e.id} className="overflow-hidden rounded-lg bg-panel-2">
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img
@@ -249,7 +255,7 @@ export function SiteRecord({ id }: { id: string }) {
           )}
         </div>
 
-        <div className="space-y-4">
+        <div className="space-y-8">
           <Card title="Where it is" id="place">
             <dl className="space-y-2 text-sm">
               <div className="flex justify-between gap-4"><dt className="text-fg-muted">Coordinates</dt><dd className="font-mono text-xs text-fg">{formatCoords(site.latitude, site.longitude, 5)}</dd></div>

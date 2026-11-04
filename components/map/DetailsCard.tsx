@@ -66,6 +66,7 @@ export function DetailsCard({ selection, onClose }: { selection: Selection; onCl
         ) : (
           <>
             {selection.place.rows.map(([label, value]) => <Row key={label} label={label} value={value} />)}
+            {selection.place.note && <p className="border-t border-line pt-2 text-sm text-fg-muted">{selection.place.note}</p>}
             {selection.place.links && selection.place.links.length > 0 && (
               <ul className="space-y-1 border-t border-line pt-2">
                 {selection.place.links.map((l) => (

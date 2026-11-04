@@ -7,8 +7,8 @@ import maplibregl from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import { BarChart3, Clock, Crosshair, Flame, Layers, PanelLeftClose, PanelLeftOpen, PenTool, SlidersHorizontal, Satellite, X, Map as MapIcon } from 'lucide-react';
 import {
-  getAllWasteSites, getAreaCheck, getAreaMentions, getCollectionPoints, getFacilities, getFloodZoneGeoJson, getFloodZones,
-  getFlowTimeline, getHotspots, getReferenceLayer, getWaterAnomalies, getWaterSources,
+  getAllWasteSites, getAreaCheck, getAreaMentions, getCollectionPoints, getFacilities, getFloodZonesGeoJson, getFloodZones,
+  getCoverage, getFlowTimeline, getHotspots, getReferenceLayer, getWaterAnomalies, getWaterSources,
 } from '@/lib/api';
 import { RIVERS_STATE_CENTER, RIVERS_STATE_ZOOM } from '@/lib/constants';
 import { mapStyleFor, type Basemap } from '@/lib/mapStyle';
@@ -27,7 +27,7 @@ import {
   CLICKABLE_LAYERS, DEFAULT_ENABLED, addAllLayers, areaMentionsToGeoJSON, applyHeatStyle, applyVisibility, circleToGeoJSON, collectionPointsToGeoJSON,
   drawToGeoJSON, facilitiesToGeoJSON, floodZonesToGeoJSON, flowRoutesToGeoJSON, heatFromSites, hotspotsToGeoJSON, nearestLinesToGeoJSON,
   placeFromFeature, pointInPolygon, polygonAreaKm2, setSourceData, sitesToGeoJSON, waterAnomaliesToGeoJSON, waterSourcesToGeoJSON,
-  type LayerId,
+  SETTING_LAYERS, type LayerId,
 } from './mapLayers';
 
 const SWR = { revalidateOnFocus: false };
@@ -115,17 +115,17 @@ export default function WasteMap() {
   const refSchools = useSWR(enabled.schools ? 'ref-SCHOOL' : null, () => getReferenceLayer('SCHOOL'), SWR);
   const refHealth = useSWR(enabled.health ? 'ref-HEALTH_FACILITY' : null, () => getReferenceLayer('HEALTH_FACILITY'), SWR);
   const areaMentions = useSWR(enabled['area-mentions'] ? 'area-mentions' : null, () => getAreaMentions(), SWR);
-  const lga = useSWR(enabled.lga || enabled['area-mentions'] ? 'lga-boundaries' : null, () => fetch('/data/lga-boundaries.geojson').then((r) => { if (!r.ok) throw new Error('The area outlines did not load.'); return r.json() as Promise<GeoJSON.FeatureCollection>; }), SWR);
+  const coverage = useSWR(enabled['data-gaps'] ? 'coverage' : null, () => getCoverage(), SWR);
+  const lga = useSWR(enabled.lga || enabled['area-mentions'] || enabled['data-gaps'] ? 'lga-boundaries' : null, () => fetch('/data/lga-boundaries.geojson').then((r) => { if (!r.ok) throw new Error('The area outlines did not load.'); return r.json() as Promise<GeoJSON.FeatureCollection>; }), SWR);
 
   const zones = floodZones.data;
-  const floodGeo = useSWR(
-    zones && zones.length > 0 ? ['flood-geojson', zones.map((z) => z.id).join(',')] : null,
-    async () => {
-      const results = await Promise.allSettled(zones!.map((z) => getFloodZoneGeoJson(z.id)));
-      return results.map((r) => (r.status === 'fulfilled' ? r.value : null));
-    },
-    SWR,
-  );
+  // All outlines in one request, matched to the list by id.
+  const floodShapes = useSWR(zones && zones.length > 0 ? 'flood-geojson' : null, getFloodZonesGeoJson, SWR);
+  const floodGeo = useMemo(() => {
+    if (!zones || !floodShapes.data) return { data: undefined };
+    const byId = new Map(floodShapes.data.features.map((f) => [String(f.properties?.id), f]));
+    return { data: zones.map((z) => byId.get(z.id) ?? null) };
+  }, [zones, floodShapes.data]);
 
   // Every site the filters allow, then the ones that existed on the history date.
   const allSites = useMemo(() => (sites.data ?? []).map(toMapSite), [sites.data]);
@@ -137,6 +137,22 @@ export default function WasteMap() {
     () => (historyOn ? allSites.filter((s) => new Date(s.firstSeenAt).getTime() <= historyDate) : allSites),
     [allSites, historyOn, historyDate],
   );
+
+  // Where the waste is: each kind of place, and sewage, can be switched off on its own.
+  const shownSites = useMemo(
+    () => visibleSites.filter((s) => enabled[SETTING_LAYERS[s.setting ?? 'LAND']] && (s.category !== 'HUMAN_SEWAGE' || enabled.sewage)),
+    [visibleSites, enabled],
+  );
+
+  // Each area's outline, carrying how much checked data it has.
+  const gaps = useMemo<GeoJSON.FeatureCollection>(() => {
+    const rows = new Map((coverage.data?.data ?? []).map((r) => [r.lga, r]));
+    const features = ((lga.data as GeoJSON.FeatureCollection | undefined)?.features ?? []).map((f) => {
+      const row = rows.get(String(f.properties?.name));
+      return { ...f, properties: { ...f.properties, ...(row ?? {}), status: row?.status ?? 'no_data' } };
+    });
+    return { type: 'FeatureCollection', features };
+  }, [coverage.data, lga.data]);
 
   // The first time sites arrive, move the map to them. A shared link that names a place keeps its own view.
   const fitted = useRef(false);
@@ -243,8 +259,8 @@ export default function WasteMap() {
 
   useEffect(() => {
     withMap((map) => {
-      setSourceData(map, 'dump-sites', sitesToGeoJSON(visibleSites));
-      setSourceData(map, 'heatmap-data', heatFromSites(visibleSites));
+      setSourceData(map, 'dump-sites', sitesToGeoJSON(shownSites));
+      setSourceData(map, 'heatmap-data', heatFromSites(shownSites));
     });
     sitesById.current = new Map(allSites.map((s) => [s.id, s]));
     // Open the site named in a deep link once the sites are in.
@@ -253,7 +269,9 @@ export default function WasteMap() {
       if (site) setSelection({ kind: 'site', site });
       pendingSiteId.current = null;
     }
-  }, [withMap, visibleSites, allSites, sites.data]);
+  }, [withMap, shownSites, allSites, sites.data]);
+
+  useEffect(() => { withMap((m) => setSourceData(m, 'data-gaps', coverage.data ? gaps : EMPTY_FC)); }, [withMap, gaps, coverage.data]);
 
   useEffect(() => {
     const map = mapRef.current;
@@ -378,12 +396,19 @@ export default function WasteMap() {
     ];
     return checks.filter(([, bad]) => bad).map(([name]) => name);
   }, [hotspots.error, collectionPoints.error, facilities.error, waterSources.error, waterAnomalies.error, floodZones.error, flows.error,
-    lga.error, refWaterways.error, refDrains.error, refSchools.error, refHealth.error]);
+    lga.error, coverage.error, refWaterways.error, refDrains.error, refSchools.error, refHealth.error]);
 
   const loading = !mapError && (epoch === 0 || (sites.isLoading && !sites.data));
 
   const counts: Partial<Record<LayerId, number>> = {
-    'dump-sites': visibleSites.length,
+    'dump-sites': shownSites.length,
+    'setting-land': visibleSites.filter((s) => (s.setting ?? 'LAND') === 'LAND').length,
+    'setting-drain': visibleSites.filter((s) => s.setting === 'DRAIN').length,
+    'setting-waterway': visibleSites.filter((s) => s.setting === 'WATERWAY').length,
+    'setting-coastal': visibleSites.filter((s) => s.setting === 'COASTAL').length,
+    'setting-disposal': visibleSites.filter((s) => s.setting === 'DISPOSAL_FACILITY').length,
+    sewage: visibleSites.filter((s) => s.category === 'HUMAN_SEWAGE').length,
+    'data-gaps': coverage.data?.data.filter((r) => r.status !== 'covered').length,
     hotspots: hotspots.data?.data.length,
     'area-mentions': areaMentions.data?.data.reduce((n, a) => n + a.stories, 0),
     'collection-points': collectionPoints.data?.length,
@@ -398,7 +423,7 @@ export default function WasteMap() {
   };
 
   function retryAll() {
-    for (const q of [sites, hotspots, collectionPoints, facilities, waterSources, waterAnomalies, floodZones, flows, lga, refWaterways, refDrains, refSchools, refHealth]) {
+    for (const q of [sites, hotspots, collectionPoints, facilities, waterSources, waterAnomalies, floodZones, flows, lga, coverage, refWaterways, refDrains, refSchools, refHealth]) {
       if (q.error) void q.mutate();
     }
   }
@@ -423,12 +448,12 @@ export default function WasteMap() {
           <MapSearch sites={allSites} onPick={goTo} />
         </div>
 
-        <div className="pointer-events-auto flex gap-2" role="toolbar" aria-label="Map tools">
-          <Button onClick={() => chooseTool('draw')} aria-pressed={tool === 'draw'} aria-label="Draw an area" title="Draw an area and count the sites inside" className={`shadow-raised ${toolBtn(tool === 'draw')}`}><PenTool size={18} aria-hidden="true" /></Button>
-          <Button onClick={() => chooseTool('radius')} aria-pressed={tool === 'radius'} aria-label="Check a radius" title="Check what is within a distance of a point" className={`shadow-raised ${toolBtn(tool === 'radius')}`}><Crosshair size={18} aria-hidden="true" /></Button>
-          <Button onClick={() => { setHistoryOn((o) => !o); setHistoryPlaying(false); setHistoryDate(Date.now()); }} aria-pressed={historyOn} aria-label="History" title="Replay how the map has grown" className={`shadow-raised ${toolBtn(historyOn)}`}><Clock size={18} aria-hidden="true" /></Button>
-          <Button onClick={() => { setHeatOpen((o) => !o); if (!enabled.heatmap) setEnabled((p) => ({ ...p, heatmap: true })); }} aria-pressed={heatOpen} aria-label="Density" title="Density map and its settings" className={`shadow-raised ${toolBtn(heatOpen)}`}><Flame size={18} aria-hidden="true" /></Button>
-          <Button onClick={() => setBasemap((b) => (b === 'streets' ? 'satellite' : 'streets'))} aria-pressed={basemap === 'satellite'} aria-label={basemap === 'satellite' ? 'Street map' : 'Satellite'} title={basemap === 'satellite' ? 'Back to the street map' : 'Satellite imagery'} className={`shadow-raised ${toolBtn(basemap === 'satellite')}`}>
+        <div className="pointer-events-auto flex self-start overflow-hidden rounded border border-line-strong bg-panel shadow-raised" role="toolbar" aria-label="Map tools">
+          <Button onClick={() => chooseTool('draw')} aria-pressed={tool === 'draw'} aria-label="Draw an area" title="Draw an area and count the sites inside" variant="ghost" className={`rounded-none ${toolBtn(tool === 'draw')}`}><PenTool size={18} aria-hidden="true" /></Button>
+          <Button onClick={() => chooseTool('radius')} aria-pressed={tool === 'radius'} aria-label="Check a radius" title="Check what is within a distance of a point" variant="ghost" className={`rounded-none border-l border-line ${toolBtn(tool === 'radius')}`}><Crosshair size={18} aria-hidden="true" /></Button>
+          <Button onClick={() => { setHistoryOn((o) => !o); setHistoryPlaying(false); setHistoryDate(Date.now()); }} aria-pressed={historyOn} aria-label="History" title="Replay how the map has grown" variant="ghost" className={`rounded-none border-l border-line ${toolBtn(historyOn)}`}><Clock size={18} aria-hidden="true" /></Button>
+          <Button onClick={() => { setHeatOpen((o) => !o); if (!enabled.heatmap) setEnabled((p) => ({ ...p, heatmap: true })); }} aria-pressed={heatOpen} aria-label="Density" title="Density map and its settings" variant="ghost" className={`rounded-none border-l border-line ${toolBtn(heatOpen)}`}><Flame size={18} aria-hidden="true" /></Button>
+          <Button onClick={() => setBasemap((b) => (b === 'streets' ? 'satellite' : 'streets'))} aria-pressed={basemap === 'satellite'} aria-label={basemap === 'satellite' ? 'Street map' : 'Satellite'} title={basemap === 'satellite' ? 'Back to the street map' : 'Satellite imagery'} variant="ghost" className={`rounded-none border-l border-line ${toolBtn(basemap === 'satellite')}`}>
             {basemap === 'satellite' ? <MapIcon size={18} aria-hidden="true" /> : <Satellite size={18} aria-hidden="true" />}
           </Button>
         </div>

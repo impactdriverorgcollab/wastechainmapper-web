@@ -26,9 +26,9 @@ export interface Theme {
 
 export const themes: Record<ThemeName, Theme> = {
   light: {
-    canvas: '#EDF1EA', panel: '#FFFFFF', panel2: '#F5F8F3', panel3: '#E3E9DF',
-    line: '#D5DCD1', lineStrong: '#74837A',
-    fg: '#14211A', fgMuted: '#41524A', fgSubtle: '#566860',
+    canvas: '#F3F4F2', panel: '#FFFFFF', panel2: '#F7F8F7', panel3: '#E8EBE9',
+    line: '#DCE0DD', lineStrong: '#75807A',
+    fg: '#111816', fgMuted: '#46514C', fgSubtle: '#5A6560',
     accent: '#1B7348', accentHover: '#15603B', accentPressed: '#104D30', accentFg: '#FFFFFF', accentSoft: '#DDF0E5',
     success: '#1B6F41', successSoft: '#DDF1E5', warning: '#7C5200', warningSoft: '#FFF0CC', danger: '#B3261E', dangerSoft: '#FCE5E3',
     shadow: '#14211A',
@@ -39,9 +39,9 @@ export const themes: Record<ThemeName, Theme> = {
     area: '#1B7348', mapHalo: '#FFFFFF',
   },
   dark: {
-    canvas: '#0B1210', panel: '#131C18', panel2: '#1A2520', panel3: '#25322B',
-    line: '#2B3A33', lineStrong: '#74877D',
-    fg: '#E8F0EB', fgMuted: '#AFBEB5', fgSubtle: '#90A298',
+    canvas: '#0C0F0E', panel: '#141817', panel2: '#191E1C', panel3: '#232A27',
+    line: '#2A312E', lineStrong: '#78837E',
+    fg: '#E8EDEA', fgMuted: '#AEB8B3', fgSubtle: '#929D98',
     accent: '#5BD08F', accentHover: '#7DDBA6', accentPressed: '#45B777', accentFg: '#08130D', accentSoft: '#15291E',
     success: '#62C08F', successSoft: '#15291F', warning: '#E3B04B', warningSoft: '#2C2410', danger: '#F08478', dangerSoft: '#341A1B',
     shadow: '#000000',
@@ -49,7 +49,7 @@ export const themes: Record<ThemeName, Theme> = {
     severity: ['#5FCB6B', '#F2CB45', '#F59A3A', '#EF5B4A'],
     collectionPoint: '#62C08F', waterSource: '#4FC4D6',
     waterway: '#5AB0E8', drain: '#E3B04B', school: '#8EA2FF', health: '#4FD0B8',
-    area: '#5BD08F', mapHalo: '#0B1210',
+    area: '#5BD08F', mapHalo: '#0C0F0E',
   },
 };
 

@@ -16,22 +16,21 @@ export function PageShell({ children, wide = false }: { children: ReactNode; wid
       </SiteHeader>
       <main id="main" className={`mx-auto w-full flex-1 px-4 py-6 sm:px-6 sm:py-10 ${wide ? 'max-w-7xl' : 'max-w-6xl'}`}>{children}</main>
       <footer className="border-t border-line bg-panel">
-        <div className="mx-auto grid w-full max-w-7xl gap-8 px-4 py-8 sm:px-6 md:grid-cols-3">
-          <div>
-            <Wordmark />
-            <p className="mt-3 max-w-xs text-sm text-fg-muted">
-              A shared record of waste in Rivers State. It keeps what is known, what is reported and what is estimated apart.
-            </p>
+        <div className="mx-auto w-full max-w-7xl px-4 py-8 sm:px-6">
+          <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+            <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:gap-4">
+              <Wordmark />
+              <p className="text-sm text-fg-muted">A shared record of waste in Rivers State.</p>
+            </div>
+            <nav aria-label="Footer">
+              <ul className="flex flex-wrap gap-x-5 text-sm">
+                {[['/map', 'Map'], ['/hotspots', 'Hotspots'], ['/report', 'Report waste'], ['/leaderboard', 'Leaderboard'], ['/alerts', 'Email alerts'], ['/about', 'How the data works'], ['/developers', 'API']].map(([href, label]) => (
+                  <li key={href}><Link href={href} className="inline-flex min-h-11 items-center text-fg-muted hover:text-fg">{label}</Link></li>
+                ))}
+              </ul>
+            </nav>
           </div>
-          <nav aria-label="Footer" className="text-sm">
-            <p className="font-semibold text-fg">Explore</p>
-            <ul className="mt-2 space-y-1">
-              {[['/map', 'Map'], ['/hotspots', 'Hotspots'], ['/report', 'Report waste'], ['/leaderboard', 'Leaderboard'], ['/about', 'How the data works'], ['/developers', 'API for developers']].map(([href, label]) => (
-                <li key={href}><Link href={href} className="inline-flex min-h-11 items-center text-fg-muted hover:text-fg">{label}</Link></li>
-              ))}
-            </ul>
-          </nav>
-          <p className="text-sm text-fg-muted">
+          <p className="mt-4 max-w-4xl border-t border-line pt-4 text-xs text-fg-subtle">
             Sites found in the news or sent by the public appear as reported until a reviewer checks them. Sizes and weights are estimates, and each says how it was made.
             Places, rivers, drains, schools and clinics come from{' '}
             <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer" className={EXT}>OpenStreetMap contributors<span className="sr-only"> (opens in a new tab)</span></a>.

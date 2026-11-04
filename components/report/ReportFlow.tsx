@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useState } from 'react';
 import { CheckCircle2 } from 'lucide-react';
-import { ApiError, submitReport, uploadPhoto } from '@/lib/api';
+import { ApiError, submitReport, uploadPhoto, uploadVideo } from '@/lib/api';
 import { useSession } from '@/lib/auth';
 import type { SubmissionInput, SubmitResult } from '@/lib/types';
 import { Button } from '@/components/ui/Button';
@@ -12,6 +12,7 @@ import { ObservationForm, type FormPhoto } from './ObservationForm';
 interface Saved {
   result: SubmitResult;
   failed: FormPhoto[];
+  videoFailed?: string;
 }
 
 /** The public form: send the report first, then the photos one by one, so a weak connection loses as little as possible. */
@@ -21,7 +22,7 @@ export function ReportFlow() {
   const [key, setKey] = useState(0);
   const session = useSession();
 
-  async function send(input: SubmissionInput, photos: FormPhoto[]) {
+  async function send(input: SubmissionInput, photos: FormPhoto[], video?: File | null) {
     let result: SubmitResult;
     try {
       result = await submitReport(input, session.token);
@@ -39,7 +40,15 @@ export function ReportFlow() {
         failed.push(p);
       }
     }
-    setSaved({ result, failed });
+    let videoFailed: string | undefined;
+    if (video) {
+      try {
+        await uploadVideo(result.id, result.uploadToken, video);
+      } catch (e) {
+        videoFailed = e instanceof ApiError && e.status === 503 ? 'Videos are not switched on yet, so it was not kept. Your photos and report are saved.' : 'The video did not upload. Your report and photos are saved without it.';
+      }
+    }
+    setSaved({ result, failed, videoFailed });
     window.scrollTo({ top: 0 });
   }
 
@@ -72,6 +81,8 @@ export function ReportFlow() {
             {saved.result.credited && ' It will count towards your record once it is approved.'}
           </p>
         </div>
+
+        {saved.videoFailed && <p role="alert" className="rounded-lg bg-warning-soft p-4 text-sm text-fg">{saved.videoFailed}</p>}
 
         {saved.failed.length > 0 && (
           <div role="alert" className="rounded-lg bg-warning-soft p-4">

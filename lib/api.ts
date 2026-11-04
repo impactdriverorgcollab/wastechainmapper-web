@@ -7,6 +7,7 @@ import type {
   Paged, WasteSite, SiteDetail, SiteContext, Journey, Hotspot, CoverageRow, ProximitySummary, AreaCheck, SummaryV1,
   AreaMention, DataQualityItem, DataSourceRow, UserRow, UserRole, AuditRow, SubmitResult, SubmissionInput, ObservationDetail, EvidenceItem,
   LeaderboardResponse, PublicContributor, MyRecord, OwnProfile, ProfileReviewRow, ProfileStatus,
+  WatchEntry, AreaIndicator, PublishedReference, AlertKind,
 } from './types';
 
 // Requests go to the website's own server (app/backend), which adds the website's API key and
@@ -173,8 +174,9 @@ export function getFloodZones(params?: Record<string, string>) {
   return apiFetch<FloodZone[]>(`/flood-zones${query(params)}`);
 }
 
-export function getFloodZoneGeoJson(id: string) {
-  return apiFetch<GeoJSON.Feature>(`/flood-zones/${id}/geojson`);
+/** Every flood zone outline in one request. Asking for each zone on its own ran into the request limit. */
+export function getFloodZonesGeoJson() {
+  return apiFetch<GeoJSON.FeatureCollection>('/flood-zones/geojson');
 }
 
 // ── Analytics ─────────────────────────────────────────────────────────────────
@@ -297,6 +299,30 @@ export function getHotspots(params?: Params) {
   return apiFetch<{ data: Hotspot[]; meta: { method: string; radiusM: number; days: number } }>(`/hotspots${query(params)}`);
 }
 
+export function getWatchList() {
+  return apiFetch<{ data: WatchEntry[]; meta: { method: string; experimental: true; rainySeason: boolean } }>('/hotspots/watch');
+}
+
+export function getAreaIndicators(token?: string | null) {
+  return apiFetch<{ data: AreaIndicator[]; meta: { notice: string } }>('/analytics/area-indicators', token ? { headers: authHeaders(token) } : undefined);
+}
+
+export function getReferences() {
+  return apiFetch<PublishedReference[]>('/analytics/research');
+}
+
+export function subscribeAlerts(email: string, lgas: string[], kinds: AlertKind[]) {
+  return apiFetch<unknown>('/alerts/subscribe', { method: 'POST', body: JSON.stringify({ email, lgas, kinds }) });
+}
+
+export function confirmAlerts(token: string) {
+  return apiFetch<{ confirmed: true; lgas: string[]; kinds: AlertKind[] }>('/alerts/confirm', { method: 'POST', body: JSON.stringify({ token }) });
+}
+
+export function unsubscribeAlerts(id: string, token: string) {
+  return apiFetch<unknown>('/alerts/unsubscribe', { method: 'POST', body: JSON.stringify({ id, token }) });
+}
+
 export function getCoverage() {
   return apiFetch<{ data: CoverageRow[]; meta: { statuses: Record<string, string>; unplacedAwaitingReview: number } }>('/analytics/coverage');
 }
@@ -340,6 +366,34 @@ export function submitFieldReport(input: SubmissionInput, token: string) {
   return apiFetch<SubmitResult>('/reports/field', { method: 'POST', body: JSON.stringify(input), headers: authHeaders(token) });
 }
 
+/**
+ * Sends a video in three steps: ask for an upload address, put the file there directly (it never passes
+ * through this website, which cannot take large files), then say it has arrived.
+ */
+export async function uploadVideo(reportId: string, uploadToken: string, file: File) {
+  const start = await apiFetch<{ evidenceId: string; uploadUrl: string; headers: Record<string, string> }>(`/reports/${reportId}/videos`, {
+    method: 'POST',
+    body: JSON.stringify({ contentType: file.type, sizeBytes: file.size, capturedAt: new Date(file.lastModified || Date.now()).toISOString() }),
+    headers: { 'X-Upload-Token': uploadToken },
+  });
+  let put: Response;
+  try {
+    put = await fetch(start.uploadUrl, { method: 'PUT', body: file, headers: start.headers });
+  } catch {
+    throw new ApiError('The video did not upload. Check your connection and try again.', 0);
+  }
+  if (!put.ok) throw new ApiError('The video did not upload. Try again.', put.status);
+  return apiFetch<{ id: string }>(`/reports/${reportId}/videos/${start.evidenceId}/done`, { method: 'POST', headers: { 'X-Upload-Token': uploadToken } });
+}
+
+export function getVideoUrl(id: string, token?: string | null) {
+  return apiFetch<{ url: string; mimeType: string }>(`/evidence/${id}/url`, token ? { headers: authHeaders(token) } : undefined);
+}
+
+export function saveRedacted(id: string, dataUrl: string, token: string) {
+  return apiFetch<EvidenceItem>(`/evidence/${id}/redacted`, { method: 'POST', body: JSON.stringify({ dataUrl }), headers: authHeaders(token) });
+}
+
 export function uploadPhoto(reportId: string, uploadToken: string, dataUrl: string, capturedAt?: string) {
   return apiFetch<{ id: string }>(`/reports/${reportId}/evidence`, {
     method: 'POST',
@@ -363,8 +417,8 @@ export function resolveDuplicate(reportId: string, action: 'DISMISS' | 'MERGE', 
 }
 
 /** Fetches a photo that is not public yet, using the reviewer's login, and returns a temporary address for it. */
-export async function fetchPrivatePhoto(id: string, token: string): Promise<string> {
-  const res = await fetch(`${BASE}/evidence/${id}/image`, { headers: authHeaders(token) });
+export async function fetchPrivatePhoto(id: string, token: string, version?: 'original'): Promise<string> {
+  const res = await fetch(`${BASE}/evidence/${id}/image${version ? `?version=${version}` : ''}`, { headers: authHeaders(token) });
   if (!res.ok) throw new ApiError('The photo could not be loaded.', res.status);
   return URL.createObjectURL(await res.blob());
 }

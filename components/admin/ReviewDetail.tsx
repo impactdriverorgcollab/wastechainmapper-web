@@ -10,6 +10,8 @@ import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { EstimateRow } from '@/components/ui/Provenance';
 import { Skeleton } from '@/components/ui/Skeleton';
+import { VideoClip } from '@/components/ui/VideoClip';
+import { BlurTool } from './BlurTool';
 import { StoryPins } from './StoryPins';
 
 function PhotoTile({ item, index, token, onChanged }: { item: EvidenceItem; index: number; token: string; onChanged: () => void }) {
@@ -17,6 +19,8 @@ function PhotoTile({ item, index, token, onChanged }: { item: EvidenceItem; inde
   const [failed, setFailed] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [blurring, setBlurring] = useState<string | null>(null);
+  const s = item.aiSuggestion;
 
   useEffect(() => {
     let url: string | null = null;
@@ -40,6 +44,32 @@ function PhotoTile({ item, index, token, onChanged }: { item: EvidenceItem; inde
     }
   }
 
+  if (item.kind === 'video') {
+    return (
+      <li className="overflow-hidden rounded-lg bg-panel-2">
+        <VideoClip id={item.id} token={token} label={`Video ${index + 1} sent with this report`} />
+        <div className="space-y-2 p-2">
+          <p className="text-xs text-fg-muted">{item.publicApproved ? 'Shown publicly' : item.containsPeople ? 'Held back: shows people' : 'Private until you approve it'}</p>
+          <div className="flex flex-wrap gap-2">
+            {item.publicApproved
+              ? <Button onClick={() => change({ publicApproved: false })} loading={busy}><EyeOff size={14} aria-hidden="true" />Hold back</Button>
+              : <Button variant="primary" onClick={() => change({ publicApproved: true })} loading={busy} disabled={item.containsPeople}><Eye size={14} aria-hidden="true" />Show publicly</Button>}
+            <Button onClick={() => change({ containsPeople: !item.containsPeople })} loading={busy} aria-pressed={!!item.containsPeople}><Users size={14} aria-hidden="true" />{item.containsPeople ? 'No people' : 'Shows people'}</Button>
+          </div>
+          {error && <p className="field-error">{error}</p>}
+        </div>
+      </li>
+    );
+  }
+
+  if (blurring) {
+    return (
+      <li className="col-span-2 rounded-lg bg-panel-2 p-3">
+        <BlurTool src={blurring} evidenceId={item.id} token={token} onCancel={() => setBlurring(null)} onDone={() => { setBlurring(null); onChanged(); }} />
+      </li>
+    );
+  }
+
   return (
     <li className="overflow-hidden rounded-lg bg-panel-2">
       {failed ? (
@@ -52,19 +82,32 @@ function PhotoTile({ item, index, token, onChanged }: { item: EvidenceItem; inde
       )}
       <div className="space-y-2 p-2">
         <p className="text-xs text-fg-muted">
-          {item.publicApproved ? 'Shown publicly' : item.containsPeople ? 'Held back: shows people' : 'Private until you approve it'}
+          {item.publicApproved
+            ? (item.redactedAt ? 'Shown publicly, blurred' : 'Shown publicly')
+            : item.redactedAt ? 'Blurred copy ready. Private until you approve it'
+            : item.containsPeople ? 'Held back: shows people' : 'Private until you approve it'}
         </p>
+        {s && (
+          <p className="text-xs text-fg-muted">
+            <span className="font-semibold text-fg">Software suggestion:</span> {WASTE_CATEGORY_INFO[s.category]?.label ?? s.category}, {s.confidence} confidence{s.hazardous ? ', may be hazardous' : ''}. {s.note}
+          </p>
+        )}
         <div className="flex flex-wrap gap-2">
           {item.publicApproved ? (
             <Button onClick={() => change({ publicApproved: false })} loading={busy}><EyeOff size={14} aria-hidden="true" />Hold back</Button>
           ) : (
-            <Button variant="primary" onClick={() => change({ publicApproved: true })} loading={busy} disabled={item.containsPeople}>
+            <Button variant="primary" onClick={() => change({ publicApproved: true })} loading={busy} disabled={item.containsPeople && !item.redactedAt}>
               <Eye size={14} aria-hidden="true" />Show publicly
             </Button>
           )}
           <Button onClick={() => change({ containsPeople: !item.containsPeople })} loading={busy} aria-pressed={!!item.containsPeople}>
             <Users size={14} aria-hidden="true" />{item.containsPeople ? 'No people' : 'Shows people'}
           </Button>
+          {src && (
+            <Button onClick={() => void fetchPrivatePhoto(item.id, token, 'original').then(setBlurring).catch(() => setError('The photo could not be opened for blurring.'))} disabled={busy}>
+              <EyeOff size={14} aria-hidden="true" />{item.redactedAt ? 'Blur again' : 'Blur faces or plates'}
+            </Button>
+          )}
         </div>
         {error && <p className="field-error">{error}</p>}
       </div>
@@ -171,11 +214,11 @@ export function ReviewDetail({ report, token, onChanged }: Props) {
 
       {report.evidence && report.evidence.length > 0 && (
         <div>
-          <p className="mb-2 text-sm font-semibold text-fg">Photos</p>
+          <p className="mb-2 text-sm font-semibold text-fg">Photos and video</p>
           <ul className="grid grid-cols-2 gap-3">
             {report.evidence.map((e, i) => <PhotoTile key={e.id} item={e} index={i} token={token} onChanged={onChanged} />)}
           </ul>
-          <p className="mt-2 text-xs text-fg-subtle">Photos stay private until you approve them. Hold back any that show faces or number plates.</p>
+          <p className="mt-2 text-xs text-fg-subtle">Photos and videos stay private until you approve them. Blur faces and number plates, or hold the photo back. A video that shows people cannot be published.</p>
         </div>
       )}
 
